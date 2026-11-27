@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BookOpen, ChevronDown, GitBranch, ArrowUpRight } from 'lucide-react';
-import { BIBLE_BOOKS, parseBibleReadingReference, type BibleReadingLocation } from '../lib/bibleBooks';
+import { BIBLE_BOOKS, canonicalBibleVerseReference, parseBibleReadingReference, type BibleReadingLocation } from '../lib/bibleBooks';
 import { fetchEditionChapter } from '../lib/scriptureEditions';
 
 type LinkRow = [string, string, number];
@@ -1354,20 +1354,16 @@ const reviewedConnections: Array<[string,string,ThreadType,ThreadType]> = [
  ["Revelation 12:11","Romans 12:21","strategy","strategy"],
 ];
 const reviewedThreadIndex = new Map<string, Map<string, ThreadType>>();
-const reviewedPassageIndex = new Map<string, LinkRow[]>();
+const threadKey = (reference: string) => canonicalBibleVerseReference(reference) ?? reference;
 function indexReviewedThread(from:string,to:string,kind:ThreadType) {
- let index=reviewedThreadIndex.get(from);
- if(!index){index=new Map();reviewedThreadIndex.set(from,index);}
- index.set(to,kind);
- let links=reviewedPassageIndex.get(from);
- if(!links){links=[];reviewedPassageIndex.set(from,links);}
- links.push([to,'',0]);
+ const source=threadKey(from), destination=threadKey(to);
+ if(source===destination || !parseBibleReadingReference(destination)?.verse)return;
+ let index=reviewedThreadIndex.get(source);
+ if(!index){index=new Map();reviewedThreadIndex.set(source,index);}
+ index.set(destination,kind);
 }
 for(const [a,b,forward,reverse] of reviewedConnections){
  indexReviewedThread(a,b,forward);indexReviewedThread(b,a,reverse);
-}
-function threadType(from:string,to:string):ThreadType {
- return reviewedThreadIndex.get(from)?.get(to) ?? 'related';
 }
 
 type Navigate = (location: BibleReadingLocation) => void;
@@ -2655,15 +2651,62 @@ const definedThreads: Array<[string,string,string,ThreadType]> = [
  ['Isaiah 40:3','Matthew 3:3','Matthew identifies John the Baptist with the voice preparing the Lord’s way.','fulfillment'],
  ['Genesis 50:25','Exodus 13:19','Moses carries Joseph’s bones in fulfillment of Joseph’s earlier oath.','history'],
  ['Exodus 13:19','Joshua 24:32','Joseph’s bones carried out of Egypt are eventually buried at Shechem.','history'],
+ ["1 Chronicles 1:43","Genesis 36:31","Both passages introduce the Edomite royal register by placing those kings before Israel's monarchy.","parallel"],
+ ["1 Chronicles 10:12","1 Samuel 31:13","Both accounts record the people of Jabesh burying Saul and his sons; the tree is described differently.","parallel"],
+ ["1 Chronicles 15:15","Numbers 4:15","Chronicles describes carrying the ark with poles on the shoulders, in accordance with the transport duties assigned in the Torah.","law"],
+ ["1 Chronicles 16:8","Psalm 105:1","The opening call to give thanks and proclaim God's deeds is shared by David's thanksgiving and Psalm 105.","parallel"],
+ ["1 Chronicles 16:23","Psalm 96:2","Both passages call the earth to sing and announce God's salvation day after day.","parallel"],
+ ["1 Chronicles 16:34","Psalm 106:1","Both open a thanksgiving formula with God's goodness and enduring steadfast love.","parallel"],
+ ["1 Chronicles 17:14","2 Samuel 7:16","Both versions of the promise to David concern the enduring establishment of his dynasty.","parallel"],
+ ["1 Chronicles 24:10","Luke 1:5","Abijah is the eighth priestly division in Chronicles; Luke identifies Zechariah as belonging to that division.","history"],
+ ["1 Chronicles 3:5","Matthew 1:6","Chronicles names Solomon among David's sons; Matthew traces Jesus' ancestry through Solomon.","history"],
+ ["1 Chronicles 3:5","Luke 3:31","Chronicles names Nathan among David's sons; Luke traces Jesus' ancestry through Nathan.","history"],
+ ["1 Chronicles 8:33","2 Samuel 2:8","The son of Saul named Esh-baal in Chronicles is called Ish-bosheth in Samuel.","history"],
+ ["1 Chronicles 21:26","2 Chronicles 7:1","Both passages report fire from heaven answering an offering, first at David's altar and later at the temple dedication.","parallel"],
+ ["Revelation 1:6","Exodus 19:6","Exodus describes Israel's calling as a priestly kingdom; Revelation applies kingdom and priesthood language to Christ's redeemed people.","covenant"],
+ ["Revelation 1:7","Daniel 7:13","The coming with clouds recalls Daniel's vision of one like a son of man.","parallel"],
+ ["Revelation 1:7","Zechariah 12:10","Revelation recalls the pierced figure and the mourning described by Zechariah.","parallel"],
+ ["Revelation 4:8","Isaiah 6:3","Both visions include heavenly beings declaring God's holiness three times.","parallel"],
+ ["Revelation 21:4","Isaiah 25:8","Both passages describe God's removal of tears and the defeat of death.","fulfillment"],
+ ["Revelation 22:2","Ezekiel 47:12","Both visions describe trees beside life-giving waters, with recurring fruit and leaves associated with healing.","symbol"],
 ];
-export function VerseThreads({reference, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
- const rows=definedThreads.filter(([a,b])=>a===reference||b===reference);
- if(!rows.length)return null;
+type ExplainedThread = {reference:string; context:string; kind:ThreadType};
+const explainedThreadIndex = new Map<string,Map<string,ExplainedThread>>();
+for(const [a,b,context,kind] of definedThreads){
+ for(const [from,to] of [[a,b],[b,a]]){
+  const source=threadKey(from),destination=threadKey(to);
+  if(source===destination || !parseBibleReadingReference(destination)?.verse)continue;
+  let entries=explainedThreadIndex.get(source);
+  if(!entries){entries=new Map();explainedThreadIndex.set(source,entries);}
+  entries.set(destination,{reference:destination,context,kind:reviewedThreadIndex.get(source)?.get(destination) && (kind==='prophecy'||kind==='fulfillment') ? reviewedThreadIndex.get(source)!.get(destination)! : kind});
+ }
+}
+export function VerseThreads({reference, links, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
+ const key=threadKey(reference);
+ const explained=[...(explainedThreadIndex.get(key)?.values()??[])].slice(0,100);
+ const seen=new Set(explained.map(row=>row.reference));
+ const reviewed=reviewedThreadIndex.get(key);
+ const classified:Array<{reference:string;kind:ThreadType}>=[];
+ const include=(destination:string)=>{
+  const target=threadKey(destination);
+  const kind=reviewed?.get(target);
+  if(!kind||seen.has(target)||target===key||explained.length+classified.length>=100)return;
+  seen.add(target);classified.push({reference:target,kind});
+ };
+ // Rank already-reviewed matches from the chapter asset first, without promoting raw links.
+ for(const [destination] of links??[])include(destination);
+ for(const destination of reviewed?.keys()??[])include(destination);
+ const count=explained.length+classified.length;
+ if(!count)return null;
  return <details className="group my-1 rounded-xl border border-border bg-surface/80">
- <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads <span>{rows.length}</span><ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/></summary>
- <div className="space-y-3 border-t border-border p-3">{rows.map(([a,b,context,kind])=>{const ref=a===reference?b:a;return <div key={ref} className="space-y-1"><p className="text-sm leading-relaxed text-ink">{context}</p><PassageLink reference={ref} kind={kind} onNavigate={onNavigate}/></div>;})}</div>
+ <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads <span>{count}</span><ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/></summary>
+ <div className="space-y-3 border-t border-border p-3">
+ {explained.map(row=><div key={row.reference} className="space-y-1"><p className="text-sm leading-relaxed text-ink">{row.context}</p><PassageLink reference={row.reference} kind={row.kind} onNavigate={onNavigate}/></div>)}
+ {classified.length>0&&<details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs font-semibold text-stone">Classified connections · {classified.length} awaiting explanation</summary><div className="mt-2 space-y-2"><p className="text-xs text-stone">These passage pairs have been classified; their individual explanations are still being reviewed.</p>{classified.map(row=><PassageLink key={row.reference} reference={row.reference} kind={row.kind} onNavigate={onNavigate}/>)}</div></details>}
+ </div>
  </details>;
 }
+
 type ContextEntry={summary:string; links:string[]};
 const curated:Record<string,ContextEntry>={
  "Revelation 1":{"summary":"1–8 establishes the revelation, its transmission and Christ's royal identity; 9–20 introduces John's circumstances and the vision of Christ among the lampstands.","links":["Exodus 19:6","Daniel 7:13","Matthew 28:18"]},
