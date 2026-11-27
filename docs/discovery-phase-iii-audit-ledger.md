@@ -1814,3 +1814,66 @@ Resume: Ezekiel.
 | Daniel 11:5 | Retained | https://www.biblegateway.com/passage/?search=Daniel+11&version=NET ; https://www.daniel11prophecy.com/uploads/1/1/3/7/113721993/yoder_-_daniel_commentary_1c_1.pdf |
 
 Resume: Hosea.
+
+## Batch 69 — Hosea through Malachi ancient culture
+
+54 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 729/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Hosea 3:2 | Retained | https://www.biblegateway.com/passage/?search=Hosea+3&version=NET ; https://cm.israel.fm/texts/hosea/3/2/ |
+| Hosea 3:4 | Retained | https://www.biblegateway.com/passage/?search=Hosea+3&version=NET ; https://en.wikisource.org/wiki/Biblical_commentary_the_Old_Testament/Volume_VI._Lesser_Prophets/Hosea |
+| Hosea 4:12 | Retained | https://www.biblegateway.com/passage/?search=Hosea+4&version=NET ; https://www.ccel.org/ccel/c/calvin/calcom26/cache/calcom26.pdf |
+| Hosea 5:10 | Retained | https://www.biblegateway.com/passage/?search=Hosea+5&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/davies_g-i/hosea_new-century-bible_davies.pdf |
+| Hosea 5:13 | Retained | https://www.biblegateway.com/passage/?search=Hosea+5&version=NET ; https://www.newadvent.org/bible/hos005.htm |
+| Hosea 6:3 | Retained | https://www.biblegateway.com/passage/?search=Hosea+6&version=NET ; https://www.thegospelcoalition.org/commentary/hosea/ |
+| Hosea 7:4 | Retained | https://www.biblegateway.com/passage/?search=Hosea+7&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/e-books/cheyne_t-k/hosea-cbfs_cheyne.pdf |
+| Hosea 7:8 | Retained | https://www.biblegateway.com/passage/?search=Hosea+7&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/hosea/7/8 |
+| Hosea 8:7 | Retained | https://www.biblegateway.com/passage/?search=Hosea+8&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-hosea-87/ |
+| Hosea 9:4 | Retained | https://www.biblegateway.com/passage/?search=Hosea+9&version=NET ; https://tips.translation.bible/story/translation-commentary-on-hosea-94/ |
+| Hosea 10:12 | Retained | https://www.biblegateway.com/passage/?search=Hosea+10&version=NET ; https://bibletranslation.org/en/passages/HOS/10/12/ |
+| Hosea 13:3 | Retained | https://www.biblegateway.com/passage/?search=Hosea+13&version=NET ; https://classic.net.bible.org/verse.php?book=Hos&chapter=13&theme=false&verse=3 |
+| Hosea 14:5 | Retained | https://www.biblegateway.com/passage/?search=Hosea+14&version=NET ; https://tips.translation.bible/story/translation-commentary-on-hosea-145/ |
+| Joel 1:9 | Retained | https://www.biblegateway.com/passage/?search=Joel+1&version=NET ; https://epe.lac-bac.gc.ca/100/201/300/journal_hebrew/pdf/2011/article_153.pdf?nodisclaimer=1 |
+| Joel 2:13 | Retained | https://www.biblegateway.com/passage/?search=Joel+2&version=NET ; https://repository.mdx.ac.uk/download/a12937cac37c3cffe93910cb4797f617fcc683ff050e592aa71a51c8226d508a/981887/MJMJWhyte%20thesis%20EMBARGO.pdf |
+| Amos 1:1 | Retained | https://www.biblegateway.com/passage/?search=Amos+1&version=NET ; https://www.thegospelcoalition.org/commentary/amos/ |
+| Amos 1:3 | Retained | https://www.biblegateway.com/passage/?search=Amos+1&version=NET ; https://classic.net.bible.org/passage.php?passage=Amo+1%3A3&theme=wiki |
+| Amos 2:6 | Retained | https://www.biblegateway.com/passage/?search=Amos+2&version=NET ; https://kclpure.kcl.ac.uk/ws/portalfiles/portal/51215526/2016_Amissah_Patrick_Kofi_0848210_ethesis.pdf |
+| Amos 3:12 | Retained | https://www.biblegateway.com/passage/?search=Amos+3&version=NET ; https://classic.net.bible.org/verse.php?book=Amo&chapter=3&tab=commentaries&theme=false&verse=12 |
+| Amos 4:1 | Retained | https://www.biblegateway.com/passage/?search=Amos+4&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/mowvley_harry/amos-hosea_epworth-commentaries_mowvley.pdf |
+| Amos 5:19 | Retained | https://www.biblegateway.com/passage/?search=Amos+5&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/snaith_norman-h/amos-part-2_snaith.pdf |
+| Amos 6:4 | Retained | https://www.biblegateway.com/passage/?search=Amos+6&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/amos/6/4 |
+| Amos 7:14 | Retained | https://www.biblegateway.com/passage/?search=Amos+7&version=NET ; https://classic.net.bible.org/verse.php?book=Amo&chapter=7&theme=false&verse=14 |
+| Amos 8:5 | Retained | https://www.biblegateway.com/passage/?search=Amos+8&version=NET ; https://kjvstudy.kennethreitz.org/book/Amos/chapter/8/verse/5 |
+| Obadiah 1:3 | Retained | https://www.biblegateway.com/passage/?search=Obadiah+1&version=NET ; https://doras.dcu.ie/25243/1/Anderson%20spatial%20rhetoric%20Obadiah.pdf |
+| Jonah 1:3 | Retained | https://www.biblegateway.com/passage/?search=Jonah+1&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Jon&chapter=1&tab=commentaries&verse=3 |
+| Jonah 3:6 | Retained | https://www.biblegateway.com/passage/?search=Jonah+3&version=NET ; https://git.door43.org/unfoldingWord/en_tn/releases/download/v79/en_tn_32-JON_v79.pdf |
+| Micah 1:13 | Retained | https://www.biblegateway.com/passage/?search=Micah+1&version=NET ; https://bibleinterp.arizona.edu/sites/bibleinterp.arizona.edu/files/docs/Debated_Historicity_0.pdf ; https://www.britishmuseum.org/sites/default/files/2019-09/Arab_World_Resource_Web.pdf |
+| Micah 2:2 | Retained | https://www.biblegateway.com/passage/?search=Micah+2&version=NET ; https://bible.usccb.org/bible/micah/2 |
+| Micah 4:4 | Retained | https://www.biblegateway.com/passage/?search=Micah+4&version=NET ; https://www.svst.edu.ph/upload/assets/1g2bM0dBIpVZccfQIBkJ8y2w3PChXtLJLZueeuiz7KZegUOYOn.pdf |
+| Micah 6:11 | Retained | https://www.biblegateway.com/passage/?search=Micah+6&version=NET ; https://soniclight.com/tcon/notes/pdf/micah.pdf |
+| Nahum 1:1 | Retained | https://www.biblegateway.com/passage/?search=Nahum+1&version=NET ; https://study.bible.org/article/6059 |
+| Nahum 2:11 | Retained | https://www.biblegateway.com/passage/?search=Nahum+2&version=NET ; https://www.joaomordomo.com/files/books/ebooks/Smyth%20%26%20Helwys%20Bible%20Commentary%20-%20Micah-Malachi.pdf ; https://www.britishmuseum.org/sites/default/files/2024-05/Middle_East_Newsletter_Issue_8.pdf |
+| Habakkuk 1:6 | Retained | https://www.biblegateway.com/passage/?search=Habakkuk+1&version=NET ; https://www.scriptureanalysis.com/wp-content/uploads/2023/08/The-Oxford-Bible-Commentary.pdf |
+| Habakkuk 1:16 | Retained | https://www.biblegateway.com/passage/?search=Habakkuk+1&version=NET ; https://www.gospelstudies.org.uk/biblicalstudies/pdf/e-books/calvin/minor-prophets-vol-4_habakkuk-zephaniah-haggai_calvin.pdf |
+| Habakkuk 2:2 | Retained | https://www.biblegateway.com/passage/?search=Habakkuk+2&version=NET ; https://tips.translation.bible/tip_source/clark-hatton-ubs-helps-for-translators-1989/page/10/ |
+| Habakkuk 3:17 | Retained | https://www.biblegateway.com/passage/?search=Habakkuk+3&version=NET ; https://www.gospelstudies.org.uk/biblicalstudies/pdf/e-books/calvin/minor-prophets-vol-4_habakkuk-zephaniah-haggai_calvin.pdf |
+| Zephaniah 1:12 | Retained | https://www.biblegateway.com/passage/?search=Zephaniah+1&version=NET ; https://kjvstudy.kennethreitz.org/book/Zephaniah/chapter/1/verse/12 |
+| Zephaniah 2:13 | Retained | https://www.biblegateway.com/passage/?search=Zephaniah+2&version=NET ; https://tips.translation.bible/story/translation-commentary-on-zephaniah-213/ |
+| Haggai 1:6 | Retained | https://www.biblegateway.com/passage/?search=Haggai+1&version=NET ; https://tips.translation.bible/story/translation-commentary-on-haggai-16/ |
+| Zechariah 1:8 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+1&version=NET ; https://www.thegospelcoalition.org/commentary/zechariah/ |
+| Zechariah 2:1 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+2&version=NET ; https://bible.org/seriespage/zechariah-2 |
+| Zechariah 3:4 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+3&version=NET ; https://uex.dk/archive/bible-study-material/dvd-the-bibles-fight-to-live/003%20Text/004%20Bible%20Commentaries/Bible%20Commentaries/Keil%20%26%20Delitzsch%27s%20Commentary%20on%20the%20Old%20%20Testament/KD_Zechariah.pdf |
+| Zechariah 4:2 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+4&version=NET ; https://www.thegospelcoalition.org/commentary/zechariah/ |
+| Zechariah 5:1 | Revised | https://www.biblegateway.com/passage/?search=Zechariah+5&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/zec.pdf |
+| Zechariah 5:6 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+5&version=NET ; https://classic.net.bible.org/verse.php?book=Zec&chapter=5&tab=commentaries&theme=wiki&verse=6 |
+| Zechariah 6:11 | Revised | https://www.biblegateway.com/passage/?search=Zechariah+6&version=NET ; https://www.thegospelcoalition.org/commentary/zechariah/ |
+| Zechariah 7:5 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+7&version=NET ; https://www.thegospelcoalition.org/commentary/zechariah/ |
+| Zechariah 8:5 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+8&version=NET ; https://bible.org/seriespage/lesson-8-snapshot-god-s-kingdom-zechariah-84-5 |
+| Zechariah 9:9 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+9&version=NET ; https://www.thegospelcoalition.org/commentary/zechariah/ |
+| Zechariah 10:2 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+10&version=NET ; https://classic.net.bible.org/verse.php?book=Zec&chapter=10&theme=wiki&verse=2 |
+| Zechariah 14:4 | Retained | https://www.biblegateway.com/passage/?search=Zechariah+14&version=NET ; https://www.uecf.net/books/commentary-on-the-old-testament/chapter41.html |
+| Malachi 1:8 | Retained | https://www.biblegateway.com/passage/?search=Malachi+1&version=NET ; https://www.thegospelcoalition.org/commentary/Malachi/ |
+| Malachi 3:3 | Retained | https://www.biblegateway.com/passage/?search=Malachi+3&version=NET ; https://tips.translation.bible/story/translation-commentary-on-malachi-33/ |
+
+Resume: Matthew.
