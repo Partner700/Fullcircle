@@ -1176,3 +1176,33 @@ Resume: Deuteronomy 17:18 onwards.
 | Deuteronomy 34:5 | Rewritten | https://bible.usccb.org/bible/deuteronomy/34 |
 
 Resume: Joshua ancient culture. Prior corroboration, other categories, illustration rights and live rendering checks remain open.
+
+## Batch 57 — Joshua ancient culture
+
+21/21 existing Joshua ancient-culture facts rewritten and source notes independently re-read after the update. Category cumulative 166/850. This batch checks the published textual claims. It does not establish separate archaeological corroboration.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Joshua 3:15 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+3&version=NET |
+| Joshua 3:16 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+3&version=NET |
+| Joshua 4:21 | Rewritten | https://bible.usccb.org/bible/joshua/4 |
+| Joshua 6:19 | Rewritten | https://bible.usccb.org/bible/joshua/6 |
+| Joshua 7:21 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+7&version=NET |
+| Joshua 8:31 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+8&version=NET |
+| Joshua 9:4 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+9&version=NET |
+| Joshua 11:13 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+11&version=NET |
+| Joshua 11:16 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+11&version=NET |
+| Joshua 12:3 | Rewritten | https://bible.usccb.org/bible/joshua/12 |
+| Joshua 13:6 | Rewritten | https://bible.usccb.org/bible/joshua/13 |
+| Joshua 14:2 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+14&version=NET |
+| Joshua 15:15 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+15&version=NET |
+| Joshua 15:19 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+15&version=NET |
+| Joshua 16:5 | Rewritten | https://bible.usccb.org/bible/joshua/16 |
+| Joshua 17:15 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+17&version=NET |
+| Joshua 18:9 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+18&version=NET |
+| Joshua 19:9 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+19&version=NET |
+| Joshua 20:4 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+20&version=NET |
+| Joshua 21:2 | Rewritten | https://bible.usccb.org/bible/joshua/21 |
+| Joshua 24:26 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+24&version=NET |
+
+Resume: Judges ancient culture. Remaining categories, independent corroboration, illustration rights and live rendering are open.
