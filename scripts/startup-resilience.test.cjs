@@ -359,7 +359,7 @@ async function testRecovery() {
   const globals = { window, document: { querySelector: () => ({ content: currentRelease }) }, navigator: { serviceWorker: { getRegistration: () => new Promise(() => {}) } } };
   const first = loadTs('src/lib/staleBundleRecovery.ts', globals);
   assert.equal(first.recoverFromStaleBundle('Load failed'), false, 'API failures must not reload the app.');
-  assert.equal(first.recoverFromStaleBundle('Failed to fetch dynamically imported module'), true);
+  assert.equal(first.recoverFromStaleBundle("The requested module './CadetQuiz-m6f5SDNC.js' does not provide an export named 'c'"), true);
   await flush();
   assert.equal(redirects.length, 1, 'A stalled worker lookup must not block a manual retry.');
   assert.equal(new URL(redirects[0]).origin, new URL(scope).origin, 'Automatic retries must preserve the signed-in origin.');

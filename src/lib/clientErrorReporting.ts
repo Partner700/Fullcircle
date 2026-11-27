@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
 
-const CLIENT_RELEASE = '2026-10-29-target-v295';
+const CLIENT_RELEASE = `target-v${typeof document === 'undefined' ? 'unknown' : document.querySelector<HTMLMetaElement>('meta[name="full-circle-release"]')?.content || 'unknown'}`;
 let lastSignature = '';
 let lastReportAt = 0;
 

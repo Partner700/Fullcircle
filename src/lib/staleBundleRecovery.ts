@@ -2,7 +2,7 @@ const RECOVERY_KEY = 'full-circle-stale-bundle-recovery-at';
 const RECOVERY_WINDOW_MS = 300_000;
 let lastRecoveryInMemory = 0;
 
-const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css/i;
+const staleBundlePattern = /failed to fetch dynamically imported module|error loading dynamically imported module|importing a module script failed|failed to load module script|chunkloaderror|loading chunk|vite:preloaderror|unable to preload css|does not provide an export named|requested module.*does not provide|importing binding name.*not found/i;
 
 export async function reloadFreshApp(): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -23,7 +23,7 @@ export async function reloadFreshApp(): Promise<void> {
       const response = await fetch(probe.toString(), { cache: 'reload', signal: controller.signal });
       if (response.ok && /html/i.test(response.headers.get('content-type') || '')) {
         const html = await response.text();
-        const version = html.match(/<meta[^>]*name=["']full-circle-release["'][^>]*content=["'](\\d+)["']/i)?.[1];
+        const version = html.match(/<meta[^>]*name=["']full-circle-release["'][^>]*content=["'](\d+)["']/i)?.[1];
         currentShellReachable = Boolean(version && Number(version) >= Number(release) && /id=["']root["']/.test(html));
       }
     } finally {
