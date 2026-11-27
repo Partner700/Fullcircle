@@ -542,3 +542,38 @@ Resume: Ezekiel original_language.
 | Daniel 9:24 | Rewritten | https://biblehub.com/text/daniel/9-24.htm |
 
 Resume: minor prophets original_language.
+
+## Batch 31 — Minor prophets lexical review
+
+26 entries rewritten and re-queried. Recorded lexical reviews 401/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Amos 5:24 | Rewritten | https://biblehub.com/text/amos/5-24.htm |
+| Amos 8:2 | Rewritten | https://biblehub.com/text/amos/8-2.htm |
+| Habakkuk 2:4 | Rewritten | https://biblehub.com/text/habakkuk/2-4.htm |
+| Habakkuk 3:1 | Rewritten | https://biblehub.com/text/habakkuk/3-1.htm |
+| Hosea 1:4 | Rewritten | https://biblehub.com/text/hosea/1-4.htm |
+| Hosea 1:9 | Rewritten | https://biblehub.com/text/hosea/1-9.htm |
+| Hosea 10:5 | Rewritten | https://biblehub.com/text/hosea/10-5.htm |
+| Hosea 11:3 | Rewritten | https://classic.net.bible.org/verse.php?book=Hos&chapter=11&verse=3 |
+| Hosea 12:7 | Rewritten | https://biblehub.com/text/hosea/12-7.htm |
+| Hosea 14:2 | Rewritten | https://biblehub.com/text/hosea/14-2.htm |
+| Hosea 2:16 | Rewritten | https://biblehub.com/text/hosea/2-16.htm |
+| Joel 3:2 | Rewritten | https://biblehub.com/text/joel/3-2.htm |
+| Jonah 2:2 | Rewritten | https://biblehub.com/text/jonah/2-2.htm |
+| Jonah 3:10 | Rewritten | https://biblehub.com/text/jonah/3-10.htm |
+| Malachi 1:1 | Rewritten | https://biblehub.com/text/malachi/1-1.htm |
+| Malachi 2:7 | Rewritten | https://biblehub.com/text/malachi/2-7.htm |
+| Micah 1:10 | Rewritten | https://biblehub.com/text/micah/1-10.htm |
+| Micah 5:5 | Rewritten | https://biblehub.com/text/micah/5-5.htm |
+| Micah 7:18 | Rewritten | https://biblehub.com/text/micah/7-18.htm |
+| Zechariah 10:4 | Rewritten | https://biblehub.com/text/zechariah/10-4.htm |
+| Zechariah 11:7 | Rewritten | https://biblehub.com/text/zechariah/11-7.htm |
+| Zechariah 2:8 | Rewritten | https://biblehub.com/text/zechariah/2-8.htm |
+| Zechariah 3:1 | Rewritten | https://biblehub.com/text/zechariah/3-1.htm |
+| Zechariah 6:12 | Rewritten | https://biblehub.com/text/zechariah/6-12.htm |
+| Zephaniah 2:4 | Rewritten | https://biblehub.com/text/zephaniah/2-4.htm |
+| Zephaniah 3:9 | Rewritten | https://biblehub.com/text/zephaniah/3-9.htm |
+
+Resume: Matthew original_language.
