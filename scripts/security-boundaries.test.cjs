@@ -347,8 +347,13 @@ assert.match(cadetNarrative, /!userExpanded && participants\.length > 0/);
 assert.match(cadetNarrative, /reader insight participant/);
 assert.match(publicShareScreen, /relative inline-flex h-4 w-4[\s\S]*?<UserAvatar/);
 assert.match(instructorApp, /panel_image_honors', label: 'Monthly Honors'/);
-assert.match(cadetDashboard, /'welcome', 'fcx', 'honors', 'verse'/);
-assert.match(sentryApp, /'welcome', 'fcx', 'honors', 'verse'/);
+// Panel lists may gain new artwork keys without invalidating required panels.
+for (const dashboard of [cadetDashboard, sentryApp]) {
+  const panels = dashboard.match(/fetchPanelImageSettings\(\[([\s\S]*?)\]/)?.[1] ?? '';
+  for (const key of ['welcome', 'arena', 'intertent_welcome', 'fcx', 'honors', 'verse']) {
+    assert.ok(panels.includes("'" + key + "'"), 'Missing dashboard artwork key: ' + key);
+  }
+}
 assert.match(cadetSettings, /fetchUserLiveStats\(profile\.id\)/);
 assert.match(cadetSettings, /label: 'Figs', value: stats\.figs\.toLocaleString\(\)/);
 assert.match(cadetSettings, /label: 'Rhudes', value: stats\.rhudes\.toLocaleString\(\)/);
