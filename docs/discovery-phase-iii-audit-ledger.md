@@ -1335,3 +1335,49 @@ Resume: 1 Kings ancient culture.
 | 2 Kings 23:10 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+23&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/2-kings/23/10 |
 
 Resume: Chronicles ancient culture.
+
+## Batch 61 — Chronicles ancient culture
+
+37 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 305/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Chronicles 2:54 | Revised | https://www.biblegateway.com/passage/?search=1+Chronicles+2&version=NET ; https://tips.translation.bible/story/translation-commentary-on-1-chronicles-251/ |
+| 1 Chronicles 4:23 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+4&version=NET ; https://luna.dbs.org/bibles/ENGBSB/pdf/books/131CHBSB.pdf |
+| 1 Chronicles 8:40 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+8&version=NET ; https://luna.dbs.org/bibles/ENGDBS/pdf/books/14-1CH.pdf |
+| 1 Chronicles 9:22 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+9&version=NET ; https://five.sh/files/pdf/Gnostic%20Studies/Reading_Utopia_in_Chronicles.pdf |
+| 1 Chronicles 9:31 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+9&version=NET ; https://www.biblegateway.com/passage/?search=1+Chronicles+9%3A31-33&version=NET%3BNIV |
+| 1 Chronicles 15:16 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+15&version=NET ; https://ora.ox.ac.uk/objects/uuid%3A9567cdd3-8de3-4770-a74b-47ac95ea2135/files/r1g05fc159 |
+| 1 Chronicles 18:11 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+18&version=NET ; https://www.biblegateway.com/verse/en/1%20Chronicles%2018%3A11 |
+| 1 Chronicles 23:5 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+23&version=NET ; https://www.openbible.com/commentaries/1_chronicles/23-5.htm |
+| 1 Chronicles 24:5 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+24&version=NET ; https://tips.translation.bible/story/translation-commentary-on-1-chronicles-245-2/ |
+| 1 Chronicles 26:20 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+26&version=NET ; https://files.core.ac.uk/download/151480501.pdf |
+| 1 Chronicles 26:29 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+26&version=NET ; https://www.openbible.com/commentaries/1_chronicles/26-29.htm |
+| 1 Chronicles 27:25 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+27&version=NET ; https://www.kingjamesbibleonline.org/1-Chronicles-27_Commentary-Ellicott/ |
+| 2 Chronicles 2:7 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+2&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=2&theme=false&verse=7 |
+| 2 Chronicles 2:16 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+2&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=2&tab=commentaries&theme=false&verse=16 |
+| 2 Chronicles 4:6 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+4&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-chronicles-46/ |
+| 2 Chronicles 4:17 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+4&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=4&theme=wiki&verse=17 |
+| 2 Chronicles 5:3 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+5&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=2Ch&chapter=5&tab=commentaries&verse=3 |
+| 2 Chronicles 6:13 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+6&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=6&tab=commentaries&verse=13 |
+| 2 Chronicles 8:11 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+8&version=NET ; https://en.wikisource.org/wiki/Biblical_commentary_the_Old_Testament/Volume_II._Historical_Books/2_Chronicles |
+| 2 Chronicles 9:4 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+9&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/2ch.pdf |
+| 2 Chronicles 10:1 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+10&version=NET ; https://www.openbible.com/commentaries/2_chronicles/10-1.htm |
+| 2 Chronicles 11:23 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+11&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/2ch.pdf |
+| 2 Chronicles 15:16 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+15&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=15&tab=commentaries&verse=16 |
+| 2 Chronicles 16:14 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-chronicles-1614/ |
+| 2 Chronicles 17:7 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+17&version=NET ; https://www.biblegateway.com/verse/en/2%20Chronicles%2017%3A7 |
+| 2 Chronicles 17:11 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+17&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-chronicles-1711/ |
+| 2 Chronicles 19:11 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+19&version=NET ; https://www.degruyterbrill.com/document/doi/10.1515/9783110707014-006/pdf?licenseType=open-access |
+| 2 Chronicles 21:20 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+21&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=21&tab=commentaries&theme=false&verse=20 |
+| 2 Chronicles 23:11 | Revised | https://www.biblegateway.com/passage/?search=2+Chronicles+23&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-chronicles-2311/ |
+| 2 Chronicles 26:10 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+26&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-2-chronicles-2610/ |
+| 2 Chronicles 27:3 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+27&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=27&theme=wiki&verse=3 |
+| 2 Chronicles 28:15 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+28&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=28&theme=false&verse=15 |
+| 2 Chronicles 29:16 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+29&version=NET ; https://biblehub.com/2_chronicles/29-16.htm |
+| 2 Chronicles 31:5 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+31&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/2ch.pdf |
+| 2 Chronicles 31:15 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+31&version=NET ; https://biblehub.com/commentaries/2_chronicles/31-15.htm |
+| 2 Chronicles 34:22 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+34&version=NET ; https://classic.net.bible.org/verse.php?book=2Ch&chapter=34&theme=false&verse=22 |
+| 2 Chronicles 35:25 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+35&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=2Ch&chapter=35&verse=25 |
+
+Resume: Ezra ancient culture.
