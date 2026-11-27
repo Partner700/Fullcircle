@@ -254,3 +254,30 @@ Resume: 1 Kings original_language.
 | 2 Kings 25:27 | Rewritten | 2 Kings 25:27; Jeremiah 52:31; R. Da Riva et al., Royal Inscriptions of the Neo-Babylonian Empire, vol. 2, Amel-Marduk; Encyclopedia of the Bible: https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Evil-Merodach |
 
 Resume: 1 Chronicles original_language.
+
+## Batch 21 — Chronicles to Esther lexical pass
+
+18 source-reviewed updates re-queried. Cumulative recorded lexical reviews: 195.
+
+| Reference | Verdict | Source note |
+|---|---|---|
+| 1 Chronicles 11:7 | Retained; source specified | 1 Chronicles 11:4–8; Luke 2:4; Hebrew text of 1 Chronicles 11:7: https://biblehub.com/text/1_chronicles/11-7.htm |
+| 1 Chronicles 14:11 | Rewritten | 1 Chronicles 14:11; 2 Samuel 5:20; NET name note: https://classic.net.bible.org/verse.php?book=1Ch&chapter=14&verse=11 |
+| 1 Chronicles 17:16 | Rewritten | 1 Chronicles 17:16–18; Hebrew text, bayit H1004: https://biblehub.com/text/1_chronicles/17-16.htm |
+| 1 Chronicles 21:1 | Rewritten | 1 Chronicles 21:1; 2 Samuel 24:1; Job 1:6–12; NET note on adversary and the absence of the article: https://classic.net.bible.org/verse.php?book=1Ch&chapter=21&verse=1 |
+| 1 Chronicles 4:9 | Retained; source specified | 1 Chronicles 4:9–10; NET name note: https://classic.net.bible.org/verse.php?book=1Ch&chapter=4&verse=9 |
+| 2 Chronicles 1:10 | Rewritten | 2 Chronicles 1:10; Numbers 27:17; Hebrew text: https://biblehub.com/text/2_chronicles/1-10.htm |
+| 2 Chronicles 10:4 | Retained; source specified | 2 Chronicles 10:4,10–11; Hebrew text, ol H5923: https://biblehub.com/text/2_chronicles/10-4.htm |
+| 2 Chronicles 13:5 | Rewritten | 2 Chronicles 13:5; Numbers 18:19; Leviticus 2:13; NET translation note: https://classic.net.bible.org/verse.php?book=2Ch&chapter=13&verse=5 |
+| 2 Chronicles 16:9 | Retained; source specified | 2 Chronicles 16:9; Zechariah 4:10; Hebrew text, shut H7751: https://biblehub.com/text/2_chronicles/16-9.htm |
+| 2 Chronicles 20:26 | Rewritten | 2 Chronicles 20:26; Hebrew morphology of Beracah and barak: https://biblehub.com/text/2_chronicles/20-26.htm |
+| 2 Chronicles 27:6 | Rewritten | 2 Chronicles 27:6; Hebrew morphology of chazaq, kun and derekh: https://biblehub.com/text/2_chronicles/27-6.htm |
+| Ezra 2:63 | Retained; source specified | Ezra 2:63; Nehemiah 7:65; NET note on the governor's title: https://classic.net.bible.org/verse.php?book=Ezr&chapter=2&verse=63 |
+| Ezra 4:8 | Rewritten | Ezra 4:8–6:18; 7:12–26; Cambridge Bible introduction to Ezra: https://biblehub.com/commentaries/cambridge/ezra/ ; NIV language notes: https://www.biblegateway.com/passage/?search=Ezra+4-8&version=NIV |
+| Ezra 9:8 | Retained; source specified | Ezra 9:8–9; NET literal translation note, peg: https://classic.net.bible.org/verse.php?book=Ezr&chapter=9&verse=8 |
+| Nehemiah 13:24 | Retained; source specified | Nehemiah 13:23–24; Hebrew text, Ashdodit and Yehudit: https://biblehub.com/text/nehemiah/13-24.htm |
+| Nehemiah 4:10 | Rewritten | Nehemiah 4:10 (Hebrew 4:4); NET text and notes: https://classic.net.bible.org/verse.php?book=Neh&chapter=4&verse=10 |
+| Esther 2:7 | Retained; source specified | Esther 2:7; Shaul Shaked, Esther, Book of, Encyclopaedia Iranica: https://www.iranicaonline.org/articles/esther-book-of/ |
+| Esther 9:26 | Retained; source specified | Esther 3:7; 9:24–26; NET Hebrew and translation notes: https://classic.net.bible.org/verse.php?book=Est&chapter=9&theme=false&verse=26 |
+
+Resume: Job original_language.
