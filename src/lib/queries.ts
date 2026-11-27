@@ -1824,15 +1824,31 @@ export async function deleteAnnouncement(id: string) {
   panelImageReads.clear();
 }
 
+// Share only concurrent reads; never cache notification contents after completion.
+const notificationReadFlights = new Map<string, Promise<UserNotification[]>>();
+
 export async function fetchUserNotifications(userId: string, limit = 30) {
-  const { data, error } = await supabase
-    .from('user_notifications')
-    .select('*')
-    .eq('recipient_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(limit);
-  if (error) throw error;
-  return data as UserNotification[];
+  const fetchLimit = Math.max(30, limit);
+  const key = JSON.stringify([userId, fetchLimit]);
+  let flight = notificationReadFlights.get(key);
+  if (!flight) {
+    flight = (async () => {
+      const { data, error } = await supabase
+        .from('user_notifications')
+        .select('*')
+        .eq('recipient_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(fetchLimit);
+      if (error) throw error;
+      return data as UserNotification[];
+    })();
+    notificationReadFlights.set(key, flight);
+  }
+  try {
+    return (await flight).slice(0, limit);
+  } finally {
+    if (notificationReadFlights.get(key) === flight) notificationReadFlights.delete(key);
+  }
 }
 
 export async function fetchUnreadFoundersGiftNotification(userId: string) {
