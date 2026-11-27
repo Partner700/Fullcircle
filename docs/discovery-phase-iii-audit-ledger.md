@@ -139,3 +139,27 @@ Resume: Numbers and Deuteronomy original-language entries.
 | Numbers 30:2 | https://classic.net.bible.org/verse.php?book=Num&chapter=30&verse=2 |
 
 Resume: Deuteronomy original_language.
+
+## Batch 17 — Deuteronomy lexical audit
+
+15 source notes updated and independently re-queried. Cumulative lexical reviews: 113. Pentateuch lexical pass complete.
+
+| Reference | Source |
+|---|---|
+| Deuteronomy 1:1 | USCCB introduction to Deuteronomy; NET 17:18 note; https://bible.usccb.org/bible/deuteronomy/0 ; https://classic.net.bible.org/passage.php?passage=Deu+17%3A18%2C19 |
+| Deuteronomy 2:11 | Deuteronomy 2:10–11,20–21; https://www.biblegateway.com/passage/?search=Deuteronomy+2%3A10-11%2CDeuteronomy+2%3A20-21&version=CSBA |
+| Deuteronomy 4:6 | BDB chokmah H2451; Deuteronomy 4:6; Exodus 31:3; https://biblehub.com/hebrew/2451.htm |
+| Deuteronomy 5:21 | NET Deuteronomy 5:21 lexical notes; Exodus 20:17; https://classic.net.bible.org/verse.php?book=Deu&chapter=5&verse=21 |
+| Deuteronomy 6:4 | NET Deuteronomy 6:4 note; https://www.biblegateway.com/passage/?search=Deuteronomy+6%3A4&version=NET |
+| Deuteronomy 7:8 | Deuteronomy 7:8; Numbers 3:46–51; https://www.biblegateway.com/passage/?search=Deuteronomy+7%3A7-9&version=NET ; https://biblehub.com/hebrew/6299.htm |
+| Deuteronomy 9:4 | NET Deuteronomy 9:4–6; BDB tsedaqah H6666; https://www.biblegateway.com/passage/?search=Deuteronomy+9%3A4-6&version=NET ; https://biblehub.com/hebrew/6666.htm |
+| Deuteronomy 10:16 | NET Deuteronomy 10:16, 30:6 and Jeremiah 4:4 notes; Romans 2:28–29; https://www.biblegateway.com/passage/?search=Deuteronomy+10%3A16%2CDeuteronomy+30%3A6%2CJeremiah+4%3A4%2CRomans+2%3A28-29&version=NIV |
+| Deuteronomy 12:23 | BDB nephesh H5315; Deuteronomy 12:23–25; Leviticus 17:11; https://biblehub.com/hebrew/5315.htm |
+| Deuteronomy 13:13 | NET Deuteronomy 13:13, lexical note; 1 Samuel 2:12; 2 Corinthians 6:15; https://classic.net.bible.org/verse.php?book=Deu&chapter=13&tab=commentaries&verse=13 |
+| Deuteronomy 15:1 | BDB/Strong shemittah H8059; Deuteronomy 15:1–3; Exodus 23:11; https://biblehub.com/hebrew/8059.htm |
+| Deuteronomy 20:19 | NET Deuteronomy 20:19 note; Bava Kamma 91b; https://classic.net.bible.org/verse.php?book=Deu&chapter=20&tab=commentaries&theme=false&verse=19 ; https://www.sefaria.org/Bava_Kamma.91b |
+| Deuteronomy 22:11 | NET Deuteronomy 22:11 lexical note; Leviticus 19:19; Mishnah Kilayim 9; https://www.biblegateway.com/passage/?search=Deuteronomy+22%3A11&version=NET |
+| Deuteronomy 29:29 | Masoretic Deuteronomy 29:28 (English 29:29); Sanhedrin 43b; https://www.sefaria.org/Sanhedrin.43b ; https://www.thetorah.com/article/dots-on-deuteronomy-29-28-a-polemical-response-to-qumrans-secret-laws |
+| Deuteronomy 32:15 | Jewish Encyclopedia, Jeshurun; Deuteronomy 32:15; 33:5,26; Isaiah 44:2; https://www.jewishencyclopedia.com/articles/8611 |
+
+Resume: Joshua original_language, then Judges and subsequent books in canon order.
