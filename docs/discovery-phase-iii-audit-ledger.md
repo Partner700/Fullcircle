@@ -2298,3 +2298,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Ezekiel 11:16 | Revised | https://www.bible.com/bible/107/EZK.11.NET |
 | Ezekiel 15:4 | Retained | https://bible.usccb.org/bible/ezekiel/15 |
 | Ezekiel 16:49 | Retained | https://www.bible.com/bible/107/EZK.16.NET |
+
+
+## Batch 82 — Scripture detail: Ezekiel and Ezra
+
+20 first-pass reviews using retrieved USCCB chapter text and NET/Bible Gateway verse excerpts. Seven rewrites. Some chapter pages returned 403; accessible alternate verse sources used. Ezra inventory discrepancy calculated from the published list. Source verification here concerns primary text; not every earlier cross-reference or historical claim independently corroborated. No images or production rendering certification. All 20 records separately read back.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Ezekiel 19:1 | Revised | https://bible.usccb.org/bible/ezekiel/19 |
+| Ezekiel 20:12 | Retained | https://bible.usccb.org/bible/ezekiel/20 |
+| Ezekiel 22:7 | Retained | https://www.biblegateway.com/passage/?search=Ezek.22.7&version=NET |
+| Ezekiel 24:2 | Revised | https://www.biblegateway.com/passage/?search=2+Kings+25%3A1-4%2CJeremiah+52%3A4-7%2CEzekiel+24%3A1%2CEzekiel+24%3A2&version=NKJV%3BNIV%3BESV |
+| Ezekiel 28:2 | Retained | https://classic.net.bible.org/bible.php/b/o/o/w/verse.php?book=Eze&chapter=28&verse=2 |
+| Ezekiel 29:18 | Retained | https://bible.usccb.org/bible/ezekiel/29 |
+| Ezekiel 35:10 | Retained | https://classic.net.bible.org/verse.php?book=Eze&chapter=35&theme=wiki&verse=10 |
+| Ezekiel 39:9 | Revised | https://classic.net.bible.org/bible.php/b/o/d/verse.php?book=Eze&chapter=39&verse=12 |
+| Ezekiel 40:1 | Revised | https://bible.usccb.org/bible/ezekiel/40 |
+| Ezekiel 42:20 | Retained | https://bible.usccb.org/bible/ezekiel/42 |
+| Ezekiel 44:23 | Retained | https://bible.usccb.org/bible/ezekiel/44 |
+| Ezekiel 45:8 | Retained | https://bible.usccb.org/bible/ezekiel/45 |
+| Ezekiel 46:18 | Retained | https://bible.usccb.org/bible/ezekiel/46 |
+| Ezekiel 48:31 | Revised | https://www.biblegateway.com/passage/?search=Ezekiel+48%3A30-35%2CRevelation+21%3A12&version=NKJV |
+| Ezekiel 5:5 | Retained | https://bible.usccb.org/bible/ezekiel/5 |
+| Ezekiel 8:3 | Retained | https://bible.usccb.org/bible/ezekiel/8 |
+| Ezra 1:7 | Revised | https://www.biblegateway.com/passage/?search=Ezra+1%3A9-11&version=NET%3BNIV%3BKJV%3BNKJV ; https://www.biblegateway.com/passage/?search=Ezra+1%3A5-11&version=NET%3BNRSVUE%3BNIV |
+| Ezra 10:13 | Retained | https://www.biblegateway.com/passage/?search=Ezra+10%3A11-13&version=NET%3BNKJV%3BNIV%3BKJV%3BESV |
+| Ezra 3:12 | Retained | https://bible.usccb.org/bible/ezra/3 |
+| Ezra 3:3 | Revised | https://bible.usccb.org/bible/ezra/3 |
