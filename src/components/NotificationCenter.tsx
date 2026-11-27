@@ -80,21 +80,48 @@ export function NotificationCenter({ onNavigate }: Props) {
   const [toast, setToast] = useState<UserNotification | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const userId = profile?.id;
+  const loadFlight = useRef<{ userId: string; pending: boolean } | null>(null);
+  const activeUser = useRef(userId);
+  activeUser.current = userId;
+
   const load = useCallback(async () => {
-    if (!profile) { setNotifications([]); setLoading(false); return; }
-    try { setNotifications(await fetchUserNotifications(profile.id, 30)); } catch { /* keep the last successful list */ } finally { setLoading(false); }
-  }, [profile]);
+    if (!userId) { setNotifications([]); setLoading(false); return; }
+    if (loadFlight.current?.userId === userId) {
+      loadFlight.current.pending = true;
+      return;
+    }
+    const flight = { userId, pending: false };
+    loadFlight.current = flight;
+    try {
+      do {
+        flight.pending = false;
+        const rows = await fetchUserNotifications(userId, 30);
+        if (activeUser.current !== userId) return;
+        setNotifications(rows);
+      } while (flight.pending && loadFlight.current === flight);
+    } catch { /* keep the last successful list */ }
+    finally {
+      if (loadFlight.current === flight) loadFlight.current = null;
+      if (activeUser.current === userId) setLoading(false);
+    }
+  }, [userId]);
 
   useEffect(() => { void load(); }, [load]);
 
   useEffect(() => {
-    if (!profile) return;
-    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void load(); };
+    if (!userId) return;
+    let lastRefresh = 0;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== 'visible' || Date.now() - lastRefresh < 5000) return;
+      lastRefresh = Date.now();
+      void load();
+    };
     const interval = window.setInterval(refreshWhenVisible, 120_000);
     window.addEventListener('focus', refreshWhenVisible);
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => { window.clearInterval(interval); window.removeEventListener('focus', refreshWhenVisible); document.removeEventListener('visibilitychange', refreshWhenVisible); };
-  }, [load, profile]);
+  }, [load, userId]);
 
   useEffect(() => {
     if (!toast) return;
@@ -103,10 +130,10 @@ export function NotificationCenter({ onNavigate }: Props) {
   }, [toast]);
 
   useEffect(() => {
-    if (!profile) return;
-    const channel = supabase.channel(`notification_center_${profile.id}`).on(
+    if (!userId) return;
+    const channel = supabase.channel(`notification_center_${userId}`).on(
       'postgres_changes',
-      { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${profile.id}` },
+      { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${userId}` },
       (payload) => {
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
