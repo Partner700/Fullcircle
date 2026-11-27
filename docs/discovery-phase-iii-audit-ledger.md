@@ -2113,3 +2113,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 Chronicles 25:1 | Retained | https://bible.usccb.org/bible/1chronicles/25 |
 | 1 Chronicles 25:7 | Revised | https://www.bible.com/bible/107/1CH.25.NET |
 | 1 Chronicles 27:1 | Retained | https://ebible.org/study/content/texts/engnet/R127.html |
+
+
+## Batch 74 — Scripture detail: 1 Chronicles and 1 Corinthians
+
+15 further rows reviewed against published biblical text. Source notes updated and re-read; two fact texts revised. Biblical-text first pass, not external historical corroboration. No illustration additions.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Chronicles 28:11 | Retained | https://classic.net.bible.org/passage.php?mode=print&passage=1ch+22%3B28%3B29 |
+| 1 Chronicles 29:14 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+29&version=NET%3BNIV |
+| 1 Chronicles 29:29 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+29%3A29-30&version=NET%3BNIV%3BNKJV |
+| 1 Chronicles 3:17 | Retained | https://search.biblegateway.com/passage/?search=1+Chronicles+3&version=NET%3BNKJV%3BNIV |
+| 1 Chronicles 5:1 | Revised | https://classic.net.bible.org/passage.php?passage=1ch+1--9 |
+| 1 Chronicles 6:33 | Retained | https://classic.net.bible.org/passage.php?passage=1ch+1--9 |
+| 1 Chronicles 7:21 | Retained | https://classic.net.bible.org/bible.php?book=1Ch&chapter=7 |
+| 1 Chronicles 7:24 | Retained | https://classic.net.bible.org/bible.php?book=1Ch&chapter=7 |
+| 1 Corinthians 12:22 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+12&version=NIV%3BNET%3BNKJV%3BKJV |
+| 1 Corinthians 12:4 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+12&version=NIV%3BNET%3BNKJV%3BKJV |
+| 1 Corinthians 14:10 | Retained | https://classic.net.bible.org/bible.php?book=1Co&chapter=14 |
+| 1 Corinthians 16:2 | Retained | https://classic.net.bible.org/bible.php?book=1Co&chapter=16 |
+| 1 Corinthians 3:6 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+3%3A6-9&version=NET |
+| 1 Corinthians 6:7 | Revised | https://www.biblegateway.com/passage/?search=1+Corinthians+6%3A1-8&version=NET |
+| 1 Corinthians 7:25 | Retained | https://classic.net.bible.org/verse.php?book=1Co&chapter=7&theme=false&verse=25 |
