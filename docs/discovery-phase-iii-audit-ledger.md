@@ -317,3 +317,37 @@ Resume: Job original_language.
 | Job 41:34 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=41&verse=34 |
 
 Resume: Psalms original_language.
+
+## Batch 23 — Psalms Book I lexical review
+
+25 rows updated; five rewritten. NET text and notes consulted across Book I; individual lexical claims require further corroboration where the notes do not directly address them. Cumulative lexical reviews: 247/533.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Psalms 1:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 2:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 3:3 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 5:3 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 6:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 6:5 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 7:9 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 10:14 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 12:2 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 13:3 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 17:8 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 18:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 19:7 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 20:1 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 23:4 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 23:5 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 24:4 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 25:14 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 26:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 27:4 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 28:9 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 29:6 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 33:6 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 36:6 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+| Psalms 38:4 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
+
+Resume: Psalms 43:3 onward, original_language.
