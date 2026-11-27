@@ -163,3 +163,34 @@ Resume: Deuteronomy original_language.
 | Deuteronomy 32:15 | Jewish Encyclopedia, Jeshurun; Deuteronomy 32:15; 33:5,26; Isaiah 44:2; https://www.jewishencyclopedia.com/articles/8611 |
 
 Resume: Joshua original_language, then Judges and subsequent books in canon order.
+
+## Batch 18 — Joshua, Judges, Ruth lexical pass
+
+22 source-reviewed updates, re-query confirmed. Cumulative recorded lexical reviews: 135. Sources include BDB, NET and UBS translation commentary.
+
+| Reference | Verdict | Source note |
+|---|---|---|
+| Joshua 1:1 | Retained; source specified | Joshua 1:1; Exodus 24:13; 33:11; Brown–Driver–Briggs H8334, attendant/minister: https://biblehub.com/hebrew/8334.htm |
+| Joshua 1:8 | Retained; source specified | Joshua 1:8; Psalm 1:2; Brown–Driver–Briggs H1897, hagah, speak or reflect: https://biblehub.com/hebrew/1897.htm |
+| Joshua 2:18 | Rewritten | Joshua 2:18,21; Brown–Driver–Briggs H8615, distinguishes the two senses: https://biblehub.com/hebrew/8615.htm |
+| Joshua 5:9 | Retained; source specified | Joshua 5:9; NET note on Gilgal and galal: https://www.biblegateway.com/passage/?search=Joshua+5%3A9&version=NET |
+| Joshua 10:13 | Retained; source specified | Joshua 10:13; 2 Samuel 1:18; NET note on the Scroll of the Upright One: https://classic.net.bible.org/verse.php?book=Jos&chapter=10&tab=commentaries&theme=false&verse=13 |
+| Joshua 22:22 | Retained; source specified | Joshua 22:22; Psalm 50:1; NET Hebrew text and comparative renderings: https://classic.net.bible.org/verse.php?book=Jos&chapter=22&verse=22 |
+| Joshua 23:14 | Retained; source specified | Joshua 23:14; 1 Kings 2:1–3; NET idiom note: https://classic.net.bible.org/verse.php?book=Jos&chapter=23&theme=false&verse=14 |
+| Judges 1:5 | Retained; source specified | Judges 1:5–7; Joshua 10:1; Brown–Driver–Briggs H137 and Cambridge Bible commentary: https://biblehub.com/hebrew/137.htm ; https://biblehub.com/commentaries/judges/1-5.htm |
+| Judges 2:5 | Retained; source specified | Judges 2:4–5; NET Hebrew and name note: https://classic.net.bible.org/verse.php?book=Jdg&chapter=2&lang=de%2F1000&verse=5 |
+| Judges 3:8 | Retained; source specified | Judges 3:8; Genesis 24:10; Brown–Driver–Briggs H763: https://biblehub.com/hebrew/763.htm |
+| Judges 4:4 | Retained; source specified | Judges 4:4–5; NET notes on judging and public decisions: https://www.biblegateway.com/passage/?search=Judges+4%3A4%2CJudges+4%3A5&version=NET |
+| Judges 6:24 | Retained; source specified | Judges 6:22–24; NET literal translation of Yahweh-shalom: https://classic.net.bible.org/verse.php?book=Jdg&chapter=6&theme=wiki&verse=24 |
+| Judges 7:1 | Retained; source specified | Judges 7:1–3; NET note on Harod: https://classic.net.bible.org/passage.php?passage=Jdg+7%3A1 |
+| Judges 7:20 | Retained; source specified | Judges 7:20; Genesis 24:15–20; 1 Kings 17:12–16; Brown–Driver–Briggs H3537, domestic vessel: https://biblehub.com/hebrew/3537.htm |
+| Judges 8:31 | Retained; source specified | Judges 8:23,31; Genesis 20:2; 26:1; NET name note: https://classic.net.bible.org/verse.php?book=Jdg&chapter=8&theme=false&verse=31 |
+| Judges 10:4 | Rewritten | Judges 10:4; Numbers 32:41; United Bible Societies translation commentary: https://tips.translation.bible/story/translation-commentary-on-judges-104/ ; Hebrew morphology: https://biblehub.com/text/judges/10-4.htm |
+| Judges 10:16 | Retained; source specified | Judges 10:15–16; Numbers 21:4; NET notes on nephesh and qatsar: https://classic.net.bible.org/bible.php/o/w/verse.php?book=Jdg&chapter=10&verse=16 |
+| Judges 12:6 | Retained; source specified | Judges 12:5–6; Job 24:24; Brown–Driver–Briggs H7641: https://biblehub.com/hebrew/7641.htm ; NET note: https://classic.net.bible.org/verse.php?book=Jdg&chapter=12&theme=false&verse=6 |
+| Judges 13:18 | Retained; source specified | Judges 13:17–18; Isaiah 9:6; NET lexical note on peli: https://classic.net.bible.org/verse.php?book=Jdg&chapter=13&verse=18 |
+| Judges 15:19 | Retained; source specified | Judges 15:18–19; Joshua 15:62; NET place-name note: https://classic.net.bible.org/passage.php?passage=Jdg+15%3A18-19 |
+| Ruth 3:9 | Retained; source specified | Ruth 2:12; 3:9; NET note on wing or garment and the marriage request: https://classic.net.bible.org/verse.php?book=rut&chapter=3&verse=9 |
+| Ruth 4:17 | Retained; source specified | Ruth 4:14–22; NET note on the meaning of Obed: https://www.biblegateway.com/passage/?search=Ruth+4%3A16-18&version=NET |
+
+Resume: 1 Samuel original_language.
