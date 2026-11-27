@@ -2522,3 +2522,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Psalms 101:2 | Retained | https://bible.usccb.org/bible/psalms/101 |
 | Psalms 106:48 | Retained | https://bible.usccb.org/bible/psalms/106; Earlier book-ending cross-references pending |
 | Psalms 107:8 | Revised | https://bible.usccb.org/bible/psalms/107 |
+
+
+## Batch 90 — Scripture detail: Psalms 11 through 150 (reference-string order)
+
+20 first-pass editorial reviews, six substantive rewrites. Retrieved published chapter text, translation notes or relevant search excerpts for all 20. USCCB access returned 403 for several chapters; NET and other published alternatives used. Psalm 111/112 entries differentiated; Psalm 145 textual variant contextualized with Cave 11 evidence and scholarly uncertainty. External scholarly corroboration and full cross-reference retrieval are not exhaustive; no illustration or production certification. All 20 facts and source notes read back against expected values.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Psalms 11:4 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=11&theme=false&verse=4 |
+| Psalms 111:1 | Revised | https://bible.org/book/export/html/23289 |
+| Psalms 112:1 | Revised | https://bible.usccb.org/bible/psalms/112 ; https://bible.org/book/export/html/23289 |
+| Psalms 115:9 | Retained | https://bible.usccb.org/bible/psalms/115 |
+| Psalms 117:1 | Retained | https://www.biblegateway.com/passage/?search=Psalms+117&version=NIV |
+| Psalms 119:1 | Retained | https://bible.usccb.org/bible/psalms/119 |
+| Psalms 120:1 | Retained | https://www.biblegateway.com/passage/?search=Psalm+120&version=CEB%3BNET%3BKJV%3BNIV |
+| Psalms 121:4 | Revised | https://bible.usccb.org/bible/psalms/121 |
+| Psalms 124:1 | Retained | https://www.biblegateway.com/passage/?search=Psalm+124%3A1-2&version=NET |
+| Psalms 127:1 | Retained | https://bible.usccb.org/bible/psalms/127 |
+| Psalms 13:1 | Revised | https://bible.usccb.org/bible/psalms/13 |
+| Psalms 131:1 | Retained | https://www.biblegateway.com/passage/?search=Psalm+131&version=NIV%3BNET%3BKJV |
+| Psalms 134:2 | Revised | https://bible.usccb.org/bible/psalms/134 |
+| Psalms 136:1 | Retained | https://bible.usccb.org/bible/psalms/136 |
+| Psalms 137:5 | Retained | https://bible.usccb.org/bible/psalms/137 |
+| Psalms 142:1 | Retained | https://classic.net.bible.org/bible.php?book=Psa&chapter=142&theme=wiki |
+| Psalms 145:1 | Revised | https://classic.net.bible.org/passage.php?mode=print&passage=Psalms+145%3A1-147%3A20 |
+| Psalms 146:3 | Retained | https://www.biblegateway.com/passage/?search=Psalm+146&version=NET |
+| Psalms 148:1 | Retained | https://www.biblegateway.com/passage/?search=Psalm+148&version=NABRE%3BGNT%3BNKJV |
+| Psalms 150:1 | Retained | https://bible.usccb.org/bible/psalms/150 ; https://bible.org/book/export/html/23289 |
