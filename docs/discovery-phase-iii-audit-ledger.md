@@ -1044,3 +1044,36 @@ Resume: remaining Exodus ancient_culture rows.
 | Exodus 39:3 | Retained; source checked | https://bible.usccb.org/bible/exodus/39 |
 
 Resume: Leviticus ancient_culture.
+
+## Batch 52 — Leviticus ancient culture
+
+24 entries checked against retrieved textual or historical source excerpts; three rewritten to distinguish priestly allocations, installation and animal classification. Leviticus 24/24 first pass. Ancient culture cumulative 82/850. Broader material-culture claims require separate independent corroboration where the biblical text is insufficient.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Leviticus 1:3 | Retained; source checked | https://bible.usccb.org/bible/leviticus/1 ; https://bible.usccb.org/bible/leviticus/7 |
+| Leviticus 2:4 | Retained; source checked | https://bible.usccb.org/bible/leviticus/2 |
+| Leviticus 3:9 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Lev+3%3A3-5%2C9 ; https://www.fao.org/4/aj003e/AJ003E04.htm |
+| Leviticus 5:11 | Retained; source checked | https://bible.usccb.org/bible/leviticus/5 ; https://bible.usccb.org/bible/leviticus/2 |
+| Leviticus 6:11 | Retained; source checked | https://classic.net.bible.org/passage.php/xml/passage.php?passage=Lev+6%3A10%2C11 |
+| Leviticus 6:28 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Lev&chapter=6&verse=28 |
+| Leviticus 7:8 | Rewritten | https://bible.usccb.org/bible/leviticus/7 |
+| Leviticus 7:13 | Retained; source checked | https://www.biblegateway.com/passage/?search=Lev.7.13&version=NET |
+| Leviticus 8:8 | Rewritten | https://bible.usccb.org/bible/leviticus/8 ; https://bible.usccb.org/bible/exodus/28 |
+| Leviticus 10:11 | Retained; source checked | https://bible.usccb.org/bible/leviticus/10 |
+| Leviticus 11:5 | Rewritten | https://bible.usccb.org/bible/leviticus/11 ; https://classic.net.bible.org/verse.php?book=lev&chapter=11&verse=5 ; https://www.caza-narg.ca/ref/diet_rock_hyrax.pdf |
+| Leviticus 11:33 | Retained; source checked | https://bible.usccb.org/bible/leviticus/11 |
+| Leviticus 13:45 | Retained; source checked | https://classic.net.bible.org/verse.php/verse.php?book=Lev&chapter=13&tab=commentaries&verse=45 |
+| Leviticus 14:34 | Retained; source checked | https://classic.net.bible.org/passage.php?mode=print&passage=Lev+14%3A34-45 |
+| Leviticus 16:21 | Retained; source checked | https://www.etymonline.com/word/scapegoat ; https://tips.translation.bible/story/scapegoat/ |
+| Leviticus 19:9 | Retained; source checked | https://classic.net.bible.org/bible.php/b/o/verse.php?book=Lev&chapter=19&verse=9 |
+| Leviticus 19:35 | Retained; source checked | https://classic.net.bible.org/passage.php/o/w/passage.php?passage=Lev+19%3A35-36 |
+| Leviticus 21:5 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Lev&chapter=21&theme=false&verse=5 |
+| Leviticus 23:40 | Retained; source checked | https://www.sefaria.org/topics/the-four-species?no_applink=1 ; https://jewishmuseum.org.uk/schools/asset/the-four-species-of-sukkot/ |
+| Leviticus 25:10 | Retained; source checked | https://www.sefaria.org/Leviticus.25.10?lang=en ; https://classic.net.bible.org/passage.php/o/w/passage.php?mode=print&passage=Lev+25%3A9%2C10 |
+| Leviticus 25:23 | Retained; source checked | https://classic.net.bible.org/verse.php/verse.php?book=Lev&chapter=25&verse=23 ; https://bible.usccb.org/bible/leviticus/25 |
+| Leviticus 26:26 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Lev&chapter=26&verse=26 |
+| Leviticus 27:18 | Retained; source checked | https://bible.usccb.org/bible/leviticus/27 |
+| Leviticus 27:32 | Retained; source checked | https://bible.usccb.org/bible/leviticus/27 |
+
+Resume: Numbers ancient_culture.
