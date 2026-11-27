@@ -2494,3 +2494,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Numbers 35:7 | Revised | https://bible.usccb.org/bible/numbers/35 |
 | Numbers 36:11 | Revised | https://bible.usccb.org/bible/numbers/36 ; https://bible.usccb.org/bible/numbers/26 |
 | Numbers 4:3 | Retained | https://www.biblegateway.com/passage/?search=Numbers+4%3A3%2C30%2C47%3B8%3A23-26%3B+1+Chronicles+23%3A3%2C24%2C27%3B+Ezra+3%3A8&version=NABRE; commentary and search excerpt retrieved; full comparative passages pending |
+
+
+## Batch 89 — Scripture detail: Numbers through Psalms 107
+
+20 first-pass editorial reviews and eight rewrites. Added reference links for later external verification; independent retrieval of the linked publications has not been established in this run. The numerical observations were arithmetically checked. All 20 rows separately read back against expected facts and notes. No independent source certification, illustration licensing or production UI certification.
+
+| Reference | Verdict | Reference for external verification |
+|---|---|---|
+| Numbers 7:84 | Revised | https://www.biblegateway.com/passage/?search=Numbers+7%3A84-89&version=NET%3BNIV |
+| Numbers 8:25 | Revised | https://bible.usccb.org/bible/numbers/8 |
+| Numbers 9:23 | Retained | https://bible.usccb.org/bible/numbers/9 ; https://biblehub.com/text/numbers/9-23.htm |
+| Philippians 3:5 | Retained | https://bible.usccb.org/bible/philippians/3 |
+| Philippians 4:15 | Revised | https://bible.usccb.org/bible/philippians/4 |
+| Proverbs 10:1 | Retained | https://bible.usccb.org/bible/proverbs/10 |
+| Proverbs 12:10 | Retained | https://bible.usccb.org/bible/proverbs/12; Exodus and Deuteronomy cross-references pending |
+| Proverbs 13:23 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+13%3A23&version=NET%3BNIV%3BESV |
+| Proverbs 2:1 | Revised | https://bible.usccb.org/bible/proverbs/2 |
+| Proverbs 26:4 | Retained | https://bible.usccb.org/bible/proverbs/26 |
+| Proverbs 30:24 | Revised | https://bible.usccb.org/bible/proverbs/30 |
+| Proverbs 31:1 | Retained | https://bible.usccb.org/bible/proverbs/31 |
+| Proverbs 4:3 | Retained | https://bible.usccb.org/bible/proverbs/4 |
+| Proverbs 6:16 | Retained | https://bible.usccb.org/bible/proverbs/6 |
+| Proverbs 9:13 | Revised | https://bible.usccb.org/bible/proverbs/9 |
+| Psalms 10:1 | Revised | https://bible.usccb.org/bible/psalms/9 ; https://bible.usccb.org/bible/psalms/10 |
+| Psalms 100:1 | Retained | https://bible.usccb.org/bible/psalms/100 |
+| Psalms 101:2 | Retained | https://bible.usccb.org/bible/psalms/101 |
+| Psalms 106:48 | Retained | https://bible.usccb.org/bible/psalms/106; Earlier book-ending cross-references pending |
+| Psalms 107:8 | Revised | https://bible.usccb.org/bible/psalms/107 |
