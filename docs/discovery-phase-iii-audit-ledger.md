@@ -1243,3 +1243,54 @@ Resume: Judges ancient culture. Remaining categories, independent corroboration,
 | Ruth 4:9 | Retained | https://www.biblegateway.com/passage/?search=Ruth+4&version=NET ; https://classic.net.bible.org/bible.php/b/d/verse.php?book=Rut&chapter=4&verse=9 |
 
 Resume: 1 Samuel ancient culture.
+
+## Batch 59 — 1 and 2 Samuel ancient culture
+
+42 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 236/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Samuel 2:1 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+2&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=2&tab=commentaries&verse=1 |
+| 1 Samuel 2:19 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+2&version=NET ; https://biblehub.com/commentaries/cambridge/1_samuel/2.htm |
+| 1 Samuel 5:2 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+5&version=NET ; https://www.stepbible.org/?q=version%3DTNotes%40reference%3D1Sa.5 |
+| 1 Samuel 6:4 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+6&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=6&verse=4 |
+| 1 Samuel 6:13 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+6&version=NET ; https://classic.net.bible.org/dictionary.php?word=beth-shemesh |
+| 1 Samuel 7:16 | Revised | https://www.biblegateway.com/passage/?search=1+Samuel+7&version=NET ; https://www.sbl-site.org/wp-content/uploads/2024/11/Isser.pdf |
+| 1 Samuel 8:11 | Revised | https://www.biblegateway.com/passage/?search=1+Samuel+8&version=NET |
+| 1 Samuel 9:8 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+9&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=9&theme=false&verse=8 |
+| 1 Samuel 10:1 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+10&version=NET ; https://pure.bangor.ac.uk/ws/portalfiles/portal/20572812/file |
+| 1 Samuel 10:25 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+10&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=10&tab=commentaries&theme=false&verse=25 |
+| 1 Samuel 11:4 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+11&version=NET ; https://classic.net.bible.org/dictionary.php?theme=wiki&word=Shaul |
+| 1 Samuel 12:3 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+12&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=1Sa&chapter=12&verse=3 |
+| 1 Samuel 12:17 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+12&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-1-samuel-1217/ |
+| 1 Samuel 14:36 | Revised | https://www.biblegateway.com/passage/?search=1+Samuel+14&version=NET |
+| 1 Samuel 15:27 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+15&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=1Sa&chapter=15&verse=27 |
+| 1 Samuel 18:4 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+18&version=NET ; https://www.ccel.org/j/jfb/jfb/JFB09.htm |
+| 1 Samuel 20:5 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+20&version=NET ; https://soniclight.com/tcon/notes/pdf/1samuel.pdf |
+| 1 Samuel 21:6 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+21&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=21&theme=false&verse=6 |
+| 1 Samuel 24:1 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+24&version=NET ; https://classic.net.bible.org/dictionary.php?word=WILDERNESS |
+| 1 Samuel 25:2 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+25&version=NET ; https://www.bsw.org/biblica/vol-87-2006/israelite-sheepshearing-and-david-s-rise-to-power/94/ |
+| 1 Samuel 26:19 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+26&version=NET ; https://classic.net.bible.org/verse.php?book=1sa&chapter=26&verse=19 |
+| 1 Samuel 28:6 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+28&version=NET ; https://tips.translation.bible/story/translation-commentary-on-1-samuel-286/ |
+| 1 Samuel 30:12 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+30&version=NET ; https://classic.net.bible.org/verse.php?book=1Sa&chapter=30&verse=12 |
+| 1 Samuel 31:13 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+31&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/1sa.pdf |
+| 2 Samuel 2:4 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+2&version=NET ; https://www.thegospelcoalition.org/commentary/2-samuel/ |
+| 2 Samuel 3:31 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+3&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=3&theme=false&verse=31 |
+| 2 Samuel 5:11 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+5&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=5&tab=commentaries&theme=false&verse=11 |
+| 2 Samuel 6:14 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+6&version=NET ; https://classic.net.bible.org/verse.php?book=2sa&chapter=6&verse=14 |
+| 2 Samuel 6:19 | Revised | https://www.biblegateway.com/passage/?search=2+Samuel+6&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=2Sa&chapter=6&tab=commentaries&verse=19 |
+| 2 Samuel 9:7 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+9&version=NET ; https://www.thegospelcoalition.org/commentary/2-samuel/ |
+| 2 Samuel 10:4 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+10&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=10&theme=false&verse=4 |
+| 2 Samuel 12:1 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+12&version=NET ; https://brill.com/downloadpdf/journals/vt/73/3/article-p360_2.xml |
+| 2 Samuel 13:23 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+13&version=NET ; https://soniclight.com/tcon/notes/pdf/2samuel.pdf |
+| 2 Samuel 14:2 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+14&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=14&tab=commentaries&verse=2 |
+| 2 Samuel 15:2 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+15&version=NET ; https://academic.oup.com/book/10620/chapter/158618180 |
+| 2 Samuel 16:1 | Revised | https://www.biblegateway.com/passage/?search=2+Samuel+16&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=16&theme=wiki&verse=1 |
+| 2 Samuel 17:27 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+17&version=NET ; https://www.biblegateway.com/passage/?search=2Samuel+17%3A27-29&version=NET%3BNIV%3BKJV |
+| 2 Samuel 18:18 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+18&version=NET ; https://classic.net.bible.org/verse.php?book=2Sa&chapter=18&tab=commentaries&verse=18 |
+| 2 Samuel 19:24 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+19&version=NET |
+| 2 Samuel 19:35 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+19&version=NET ; https://pbcc.org/wp-content/uploads/2018/09/2sam-net.pdf |
+| 2 Samuel 20:18 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+20&version=NET ; https://ecommons.cornell.edu/server/api/core/bitstreams/dd12d833-f8b7-4273-9bd0-bfbdf8488c8b/content |
+| 2 Samuel 21:10 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+21&version=NET ; https://urresearch.rochester.edu/fileDownloadForInstitutionalItem.action?itemFileId=185692&itemId=34485 |
+
+Resume: 1 Kings ancient culture.
