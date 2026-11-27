@@ -870,3 +870,23 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Judges 18:30 | Rewritten | https://classic.net.bible.org/verse.php?book=Jdg&chapter=18&verse=30 |
 | Luke 10:1 | Rewritten | https://www.biblegateway.com/passage/?search=Luke.10.1&version=NET |
 | Luke 23:34 | Rewritten | https://classic.net.bible.org/verse.php?book=Luk&chapter=23&tab=commentaries&verse=34 |
+
+## Batch 44 — Scholarly debate, part 5
+
+13 entries revised against accessible biblical text and translation comparisons, and re-queried. Cumulative 71/110. Job 39:13, Joshua 2:15 and Luke 17:21 remain pending due to source access failures. Further independent corroboration of historical identifications remains necessary where noted.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Job 28:18 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=28&verse=18 |
+| Job 30:4 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=30&verse=4 |
+| Job 33:23 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=33&verse=23 |
+| Job 36:18 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=36&verse=18 |
+| Job 38:31 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=38&verse=31 |
+| Job 40:15 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=40&verse=15 |
+| Job 41:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=41&verse=1 |
+| John 8:1 | Rewritten | https://www.biblegateway.com/passage/?search=John+7%3A53-8%3A11&version=ESV%3BNET |
+| Jude 1:9 | Rewritten | https://classic.net.bible.org/verse.php?book=Jud&chapter=1&verse=9 |
+| Judges 7:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Jdg&chapter=7&verse=6 |
+| Leviticus 18:21 | Rewritten | https://classic.net.bible.org/verse.php?book=Lev&chapter=18&verse=21 |
+| Luke 24:13 | Rewritten | https://classic.net.bible.org/verse.php?book=Luk&chapter=24&verse=13 |
+| Mark 16:8 | Rewritten | https://classic.net.bible.org/verse.php?book=Mar&chapter=16&verse=9 |
