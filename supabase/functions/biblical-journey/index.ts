@@ -157,7 +157,7 @@ async function initialRuntime(roomId: string, characterSlug: string, playerIds: 
   }
   runtime.game.pointPoolSize = seats * 15;
   runtime.game.pointsRemaining = runtime.game.pointPoolSize;
-  runtime.game.matchDeadline = new Date(Date.parse(startedAt) + 30 * 60_000).toISOString();
+  runtime.game.matchDeadline = new Date(Date.parse(startedAt) + Math.max(1, new Set(playerIds.filter(id => id !== JOURNEY_MACHINE_ID)).size) * 15 * 60_000).toISOString();
   return runtime;
 }
 
