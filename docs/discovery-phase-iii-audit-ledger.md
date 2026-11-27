@@ -1077,3 +1077,24 @@ Resume: Leviticus ancient_culture.
 | Leviticus 27:32 | Retained; source checked | https://bible.usccb.org/bible/leviticus/27 |
 
 Resume: Numbers ancient_culture.
+
+## Batch 53 — Numbers ancient culture, part 1
+
+12 source checks; four rewritten. Ancient culture cumulative 94/850. Primary text and retrieved research excerpts support these revisions; not all broader claims have independent corroboration.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Numbers 4:49 | Retained; source checked | https://bible.usccb.org/bible/numbers/4 |
+| Numbers 5:7 | Retained; source checked | https://bible.usccb.org/bible/numbers/5 |
+| Numbers 5:15 | Retained; source checked | https://bible.usccb.org/bible/numbers/5 |
+| Numbers 6:5 | Retained; source checked | https://bible.usccb.org/bible/numbers/6 |
+| Numbers 7:3 | Rewritten | https://bible.usccb.org/bible/numbers/7 |
+| Numbers 8:7 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Num&chapter=8&tab=commentaries&theme=false&verse=7 |
+| Numbers 9:10 | Rewritten | https://www.biblegateway.com/passage/?search=Numbers+9&version=NET%3BNKJV%3BNIV |
+| Numbers 10:2 | Retained; source checked | https://www.biblegateway.com/passage/?search=Numbers+10%3A1-10&version=NIV%3BNET |
+| Numbers 11:5 | Rewritten | https://bible.usccb.org/bible/numbers/11 ; https://link.springer.com/article/10.1007/s12520-021-01344-x |
+| Numbers 13:22 | Rewritten | https://classic.net.bible.org/verse.php?book=Num&chapter=13&tab=commentaries&verse=22 |
+| Numbers 15:20 | Retained; source checked | https://bible.usccb.org/bible/numbers/15 ; https://www.lsjs.ac.uk/the-mitzvah-of-challah-380 |
+| Numbers 15:38 | Retained; source checked | https://www.sefaria.org/Numbers.15.38-40?lang2=en&with=Halakhah ; https://jewishmuseum.org.uk/schools/asset/tallit-katan/ |
+
+Resume: Numbers 16:38 onwards, remaining unmarked ancient culture.
