@@ -1294,3 +1294,44 @@ Resume: 1 Samuel ancient culture.
 | 2 Samuel 21:10 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+21&version=NET ; https://urresearch.rochester.edu/fileDownloadForInstitutionalItem.action?itemFileId=185692&itemId=34485 |
 
 Resume: 1 Kings ancient culture.
+
+## Batch 60 — Kings ancient culture
+
+32 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 268/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Kings 1:33 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+1&version=NET ; https://www.abarc.org/wp-content/uploads/2024/07/I-II-Kings-James-Smith.pdf |
+| 1 Kings 1:39 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+1&version=NET ; https://www.christianstudylibrary.org/files/pub/book_previews/John-A-Davies_A-Study-Commentary-on-1Kings_1Kings1.pdf |
+| 1 Kings 2:19 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+2&version=NET ; https://academic.oup.com/book/10720/chapter/158792534 |
+| 1 Kings 4:7 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+4&version=NET ; https://kukis.org/Kings/1kings_04.pdf |
+| 1 Kings 5:6 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+5&version=NET ; https://kjbo.org/commentary/1-Kings-Chapter-5 |
+| 1 Kings 6:38 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+6&version=NET ; https://biblehub.com/concordance/c/calendar.htm |
+| 1 Kings 9:26 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+9&version=NET ; https://concordy.org/1ki/jfb/130 |
+| 1 Kings 10:18 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+10&version=NET ; https://tips.translation.bible/story/translation-commentary-on-1-kings-1018/ |
+| 1 Kings 11:30 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+11&version=NET ; https://tips.translation.bible/story/translation-commentary-on-1-kings-1130/ |
+| 1 Kings 14:27 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+14&version=NET ; https://biblehub.com/commentaries/1_kings/14-27.htm |
+| 1 Kings 15:13 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+15&version=NET ; https://www.biblegateway.com/passage/?search=1+Kings+15%3A13&version=NET |
+| 1 Kings 15:20 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+15&version=NET ; https://doi.org/10.1163/15685330-bja10207 |
+| 1 Kings 17:12 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+17&version=NET ; https://luna.dbs.org/bibles/ENGFBV/pdf/books/1KI.pdf |
+| 1 Kings 18:30 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+18&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Exodus-An-Exegetical-Commentary-by-Victor-P.-Hamilton-z-lib.org_.epub_.pdf |
+| 1 Kings 20:34 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+20&version=NET ; https://classic.net.bible.org/verse.php?book=1Ki&chapter=20&verse=34 |
+| 1 Kings 21:3 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+21&version=NET ; https://ccel.org/ccel/jfb/jfb/JFB11.htm |
+| 2 Kings 1:8 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+1&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-kings-18/ |
+| 2 Kings 2:9 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+2&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/2-kings/2/9 |
+| 2 Kings 4:1 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+4&version=NET ; https://www.abarc.org/wp-content/uploads/2024/07/I-II-Kings-James-Smith.pdf |
+| 2 Kings 4:10 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+4&version=NET ; https://lemma.gebible.app/v/2-kings/4/10 |
+| 2 Kings 6:5 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+6&version=NET ; https://lemma.gebible.app/v/2-kings/6/5 |
+| 2 Kings 7:1 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+7&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-2-kings-71/ |
+| 2 Kings 8:6 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+8&version=NET ; https://www.biblegateway.com/verse/en/2%20Kings%208%3A6 |
+| 2 Kings 10:15 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+10&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/2ki.pdf |
+| 2 Kings 11:17 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+11&version=NET ; https://www.theway-orha.com/wp-content/uploads/2025/07/1-2-Kings-Old-Testament-Commentary.pdf |
+| 2 Kings 12:9 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+12&version=NET ; https://www.biblegateway.com/verse/en/2%20Kings%2012%3A9 |
+| 2 Kings 16:10 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+16&version=NET ; https://luna.dbs.org/bibles/ENGT4T/pdf/books/2KI.pdf |
+| 2 Kings 16:17 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+16&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/2ki.pdf |
+| 2 Kings 17:24 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+17&version=NET ; https://api.pageplace.de/preview/DT0400.9780190261177_A40612172/preview-9780190261177_A40612172.pdf |
+| 2 Kings 20:7 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+20&version=NET ; https://tips.translation.bible/es/story/translation-commentary-on-2-kings-207/ |
+| 2 Kings 22:14 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+22&version=NET ; https://luna.dbs.org/bibles/ENGT4T/pdf/books/2KI.pdf |
+| 2 Kings 23:10 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+23&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/2-kings/23/10 |
+
+Resume: Chronicles ancient culture.
