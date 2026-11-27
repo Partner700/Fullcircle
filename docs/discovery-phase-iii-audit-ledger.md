@@ -1625,3 +1625,62 @@ Resume: Proverbs ancient culture.
 | Song of Solomon 8:11 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+8&version=NET ; https://classic.net.bible.org/passage.php?passage=sos+8%3A11-12 |
 
 Resume: Isaiah ancient culture.
+
+## Batch 66 — Isaiah ancient culture
+
+50 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 563/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Isaiah 2:4 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+2&version=NET ; https://poj.peeters-leuven.be/content.php/secure/poj/secure/counter/secure/POJ/images/POJ/POJ/images/images/content.php?id=3245515&journal_code=BIB&url=article |
+| Isaiah 3:18 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+3&version=NET ; https://tips.translation.bible/tip_source/ogden-sterk-ubs-helps-for-translators-2011/page/141/ |
+| Isaiah 5:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+5&version=NET ; https://resources.abs.edu/wp-content/uploads/YEO-KHIOK-KHNG-%E2%80%98ISAIAH-5%EF%BC%9A2-7-and-27%EF%BC%9A2-6-Lets-Hear-the-Whole-Song-of-Rejection-and-Restoration%E2%80%99-Jian-Dao-Issue-3-January-1995-77-94.pdf |
+| Isaiah 6:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+6&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-66/ |
+| Isaiah 7:3 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+7&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=7&tab=commentaries&theme=false&verse=3 |
+| Isaiah 10:9 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+10&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=10&tab=commentaries&theme=false&verse=9 |
+| Isaiah 12:3 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+12&version=NET ; https://www.biblelearning.us/commentary/isaiah/chapter-12/ |
+| Isaiah 13:17 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+13&version=NET ; https://repo.proteo.hu/sites/default/files/documents/2009/2009-5789.pdf |
+| Isaiah 15:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+15&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-152/ |
+| Isaiah 15:5 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+15&version=NET ; https://bible.org/book/export/html/21146 |
+| Isaiah 16:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-161/ |
+| Isaiah 16:10 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-1610/ |
+| Isaiah 17:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+17&version=NET ; https://study.bible.org/article/26475 |
+| Isaiah 17:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+17&version=NET ; https://tips.translation.bible/tip_verse/isa-176/ |
+| Isaiah 18:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+18&version=NET ; https://new.bible.org/article/isaiah-brief-commentary |
+| Isaiah 18:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+18&version=NET ; https://tips.translation.bible/tip_verse/isa-182/ |
+| Isaiah 19:9 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+19&version=NET ; https://proteo.cj.edu.ro/sites/default/files/documents/publications/2009/1338913762.pdf |
+| Isaiah 20:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+20&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-202/ |
+| Isaiah 22:11 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+22&version=NET ; https://concordy.org/isa/jfb/401 |
+| Isaiah 23:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+23&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-231/ |
+| Isaiah 25:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+25&version=NET ; https://www.workingpreacher.org/commentaries/revised-common-lectionary/all-saints-day/commentary-on-isaiah-256-9-6 |
+| Isaiah 26:19 | Revised | https://www.biblegateway.com/passage/?search=Isaiah+26&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-2619/ |
+| Isaiah 30:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+30&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=30&tab=commentaries&verse=6 |
+| Isaiah 32:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+32&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=32&theme=false&verse=2 |
+| Isaiah 35:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+35&version=NET ; https://bibleproject.huji.ac.il/sites/default/files/he_bible_project/files/mashiah_r.pdf |
+| Isaiah 36:11 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+36&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=36&tab=commentaries&theme=false&verse=11 |
+| Isaiah 37:14 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+37&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-3714/ |
+| Isaiah 38:12 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+38&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Isa&chapter=38&tab=commentaries&verse=12 |
+| Isaiah 39:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+39&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/e-books/box_g-h/book-of-isaiah_box.pdf |
+| Isaiah 41:15 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+41&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-4115/ |
+| Isaiah 42:3 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+42&version=NET ; https://bible.org/node/13020 |
+| Isaiah 44:13 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+44&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=44&theme=wiki&verse=13 |
+| Isaiah 46:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+46&version=NET ; https://classic.net.bible.org/passage.php?passage=Isa+46%3A1&theme=wiki |
+| Isaiah 47:2 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+47&version=NET ; https://biblenotes.online/resources/adamclarke/pdfsch/isaiah047.pdf |
+| Isaiah 47:13 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+47&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/whitehouse_o-c/isaiah_40-66_century-bible_whitehouse.pdf |
+| Isaiah 48:10 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+48&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-4810/ |
+| Isaiah 49:16 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+49&version=NET ; https://research.vu.nl/files/42205692/complete%20dissertation.pdf |
+| Isaiah 50:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+50&version=NET ; https://www.workingpreacher.org/commentaries/revised-common-lectionary/ordinary-24-2/commentary-on-isaiah-504-9a |
+| Isaiah 51:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+51&version=NET ; https://www.bible-commentaries.com/source/johnschultz/BC_Isaiah.pdf |
+| Isaiah 52:7 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+52&version=NET ; https://www.workingpreacher.org/commentaries/revised-common-lectionary/christmas-day-nativity-of-our-lord-iii/commentary-on-isaiah-527-10-9 |
+| Isaiah 53:7 | Revised | https://www.biblegateway.com/passage/?search=Isaiah+53&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/act.pdf |
+| Isaiah 55:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+55&version=NET ; https://www.workingpreacher.org/commentaries/revised-common-lectionary/ordinary-18/commentary-on-isaiah-551-5-2 |
+| Isaiah 55:10 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+55&version=NET ; https://www.workingpreacher.org/commentaries/revised-common-lectionary/ordinary-15/commentary-on-isaiah-5510-13-5 |
+| Isaiah 58:5 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+58&version=NET ; https://repository.nottingham.ac.uk/server/api/core/bitstreams/25861acc-7fee-470e-86b6-07b6872df6cf/content |
+| Isaiah 58:12 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+58&version=NET ; https://classic.net.bible.org/verse.php?book=Isa&chapter=58&tab=commentaries&verse=12 |
+| Isaiah 60:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+60&version=NET ; https://storage.googleapis.com/scripturecentral-prod-strapi-uploads/22_S_Kent_Brown_Jerusalem_Connections_to_Arabia_in_600_B_C_625_646_1fe4e49ef5/22_S_Kent_Brown_Jerusalem_Connections_to_Arabia_in_600_B_C_625_646_1fe4e49ef5.pdf |
+| Isaiah 62:6 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+62&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-626/ |
+| Isaiah 63:1 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+63&version=NET ; https://hebrewbible.app/en/resources/commentary/Isaiah.63.1 |
+| Isaiah 64:8 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+64&version=NET ; https://tips.translation.bible/es/story/translation-commentary-on-isaiah-648/ |
+| Isaiah 66:23 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+66&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-6623/ |
+
+Resume: Jeremiah.
