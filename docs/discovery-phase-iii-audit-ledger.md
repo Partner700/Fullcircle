@@ -413,3 +413,24 @@ Resume: remaining Psalms original_language rows not in batches 23–24, then Pro
 | Psalms 149:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/149-4.htm |
 
 Resume: Proverbs original_language, then remaining books. Finish any earlier flagged corroboration and audit all other categories.
+
+## Batch 26 — Proverbs lexical review
+
+12 existing entries rewritten with inspected primary Hebrew morphology and NET notes; 12/12 re-queried. Recorded lexical reviews: 303/533. Earlier corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Proverbs 1:1 | Rewritten | https://biblehub.com/text/proverbs/1-1.htm |
+| Proverbs 3:11 | Rewritten | https://classic.net.bible.org/passage.php?passage=Pro+3%3A11%2C12 |
+| Proverbs 4:23 | Rewritten | https://biblehub.com/text/proverbs/4-23.htm |
+| Proverbs 5:3 | Rewritten | https://biblehub.com/text/proverbs/5-3.htm |
+| Proverbs 9:1 | Rewritten | https://biblehub.com/text/proverbs/9-1.htm |
+| Proverbs 12:18 | Rewritten | https://biblehub.com/text/proverbs/12-18.htm |
+| Proverbs 15:23 | Rewritten | https://biblehub.com/text/proverbs/15-23.htm |
+| Proverbs 19:17 | Rewritten | https://biblehub.com/text/proverbs/19-17.htm |
+| Proverbs 20:27 | Rewritten | https://biblehub.com/text/proverbs/20-27.htm |
+| Proverbs 28:13 | Rewritten | https://biblehub.com/text/proverbs/28-13.htm |
+| Proverbs 29:18 | Rewritten | https://biblehub.com/text/proverbs/29-18.htm |
+| Proverbs 31:10 | Rewritten | https://biblehub.com/text/proverbs/31-10.htm |
+
+Resume: Ecclesiastes original_language, then Song of Solomon and prophetic books.
