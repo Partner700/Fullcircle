@@ -2016,3 +2016,9 @@ Resume: Acts.
 | Revelation 21:21 | Retained | https://www.biblegateway.com/passage/?search=Revelation+21&version=NET ; https://gaulishpolytheism.com/wp-content/uploads/2022/08/the-natural-history-of-pliny-volume-2-of-6-by-the-elder-pliny.pdf |
 
 Resume: reconcile the ancient-culture ledger against the live reference set.
+
+### Ancient-culture first-pass reconciliation
+
+A two-way set comparison matched the 850 distinct references in batches 48–71 against all 850 live `ancient_culture` references. Missing live references: 0. Extra ledger references: 0. Batches 58–71 covered the final 684 entries. Each batch re-read the resulting fact and source note. This milestone covers the first pass; it does not certify independent historical corroboration for every claim.
+
+Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `scripture_detail` and `textual_connection` reviews, prior corroboration caveats, semantic duplication, licensed visuals, and both production reading surfaces.
