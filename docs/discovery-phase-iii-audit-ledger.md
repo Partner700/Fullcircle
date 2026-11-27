@@ -2550,3 +2550,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Psalms 146:3 | Retained | https://www.biblegateway.com/passage/?search=Psalm+146&version=NET |
 | Psalms 148:1 | Retained | https://www.biblegateway.com/passage/?search=Psalm+148&version=NABRE%3BGNT%3BNKJV |
 | Psalms 150:1 | Retained | https://bible.usccb.org/bible/psalms/150 ; https://bible.org/book/export/html/23289 |
+
+
+## Batch 91 — Scripture detail: Psalms 21–88 (reference-string order)
+
+20 editorial reviews, eight rewrites. Published source excerpts retrieved for all 20; some USCCB pages returned 403, alternatives used. Source excerpts support core observations; full cross-reference checks and independent scholarly corroboration remain incomplete. Distinct acrostic patterns clarified. All 20 rows read back against expected facts and source notes. No illustration or production UI certification.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Psalms 21:13 | Retained | https://search.biblegateway.com/passage/?search=Ps.21.13&version=NET |
+| Psalms 25:1 | Revised | https://classic.net.bible.org/passage.php?passage=Psa+25%3B34 |
+| Psalms 29:3 | Revised | https://bible.usccb.org/bible/psalms/29 |
+| Psalms 34:1 | Revised | https://classic.net.bible.org/passage.php?passage=Psa+25%3B34 ; https://seforimblog.com/2022/02/the-missing-nun-verse-in-ashrei/?print=print |
+| Psalms 37:1 | Revised | https://www.bible.com/bible/107/PSA.37.net ; https://classic.net.bible.org/dictionary.php?theme=wiki&word=Acrostic |
+| Psalms 41:13 | Retained | https://bible.usccb.org/bible/psalms/41 ; https://bible.org/seriespage/psalm-41 |
+| Psalms 42:1 | Retained | https://bible.usccb.org/bible/psalms/42 |
+| Psalms 43:5 | Revised | https://www.biblegateway.com/passage/?search=Psalm+42%2CPsalm+43&version=NET%3BNIV ; https://www.bible.com/be/bible/107/PSA.43.NET |
+| Psalms 50:1 | Revised | https://www.biblegateway.com/passage/?search=Psalm+50%3A1-2&version=NET |
+| Psalms 50:12 | Retained | https://www.biblegateway.com/passage/?search=Ps.50&version=NET |
+| Psalms 55:13 | Retained | https://www.biblegateway.com/passage/?search=Psalm+55%3A12-14&version=NET |
+| Psalms 62:11 | Retained | https://www.biblegateway.com/passage/?search=Psalm+62%3A10-12&version=NET |
+| Psalms 64:9 | Revised | https://www.biblegateway.com/passage/?search=Psalm+64%3A9-10&version=NET |
+| Psalms 71:18 | Retained | https://www.biblegateway.com/passage/?search=Psalm+71%3A16-18&version=NET |
+| Psalms 72:20 | Retained | https://bible.usccb.org/bible/psalms/72 |
+| Psalms 74:9 | Retained | https://biblia.com/bible/gs-netbible/psalm/74/8-9 |
+| Psalms 77:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+77&version=NIV%3BNET |
+| Psalms 79:8 | Retained | https://www.biblegateway.com/passage/?search=Psalm+79%3A8&version=NET |
+| Psalms 80:3 | Revised | https://www.biblegateway.com/passage/?search=Psalm+80&version=KJV%3BNET%3BNKJV%3BNIV%3BESV |
+| Psalms 88:1 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=88&theme=wiki&verse=1 |
