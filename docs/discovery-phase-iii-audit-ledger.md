@@ -673,3 +673,25 @@ Resume: Acts original_language.
 | Romans 8:15 | Rewritten | https://biblehub.com/text/romans/8-15.htm |
 
 Resume: Corinthians original_language.
+
+## Batch 36 — Corinthians lexical review
+
+13 entries rewritten and re-queried. Recorded lexical reviews 474/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| 1 Corinthians 11:23 | Rewritten | https://biblehub.com/text/1_corinthians/11-23.htm |
+| 1 Corinthians 13:4 | Rewritten | https://biblehub.com/text/1_corinthians/13-4.htm |
+| 1 Corinthians 16:22 | Rewritten | https://biblehub.com/text/1_corinthians/16-22.htm |
+| 1 Corinthians 3:10 | Rewritten | https://biblehub.com/text/1_corinthians/3-10.htm |
+| 1 Corinthians 4:9 | Rewritten | https://biblehub.com/text/1_corinthians/4-9.htm |
+| 1 Corinthians 6:19 | Rewritten | https://biblehub.com/text/1_corinthians/6-19.htm |
+| 2 Corinthians 1:22 | Rewritten | https://biblehub.com/text/2_corinthians/1-22.htm |
+| 2 Corinthians 10:13 | Rewritten | https://biblehub.com/text/2_corinthians/10-13.htm |
+| 2 Corinthians 12:7 | Rewritten | https://biblehub.com/text/2_corinthians/12-7.htm |
+| 2 Corinthians 13:5 | Rewritten | https://biblehub.com/text/2_corinthians/13-5.htm |
+| 2 Corinthians 2:17 | Rewritten | https://biblehub.com/text/2_corinthians/2-17.htm |
+| 2 Corinthians 5:20 | Rewritten | https://biblehub.com/text/2_corinthians/5-20.htm |
+| 2 Corinthians 7:10 | Rewritten | https://biblehub.com/text/2_corinthians/7-10.htm |
+
+Resume: Galatians original_language.
