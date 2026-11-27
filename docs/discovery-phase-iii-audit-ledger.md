@@ -491,3 +491,26 @@ Resume: Isaiah original_language.
 | Isaiah 65:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=65&verse=11 |
 
 Resume: Jeremiah original_language.
+
+## Batch 29 — Jeremiah and Lamentations lexical review
+
+14 existing entries rewritten and re-queried. Recorded lexical reviews: 356/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Jeremiah 1:11 | Rewritten | https://biblehub.com/text/jeremiah/1-11.htm ; https://biblehub.com/text/jeremiah/1-12.htm |
+| Jeremiah 2:22 | Rewritten | https://classic.net.bible.org/verse.php?book=Jer&chapter=2&verse=22 |
+| Jeremiah 6:16 | Rewritten | https://biblehub.com/text/jeremiah/6-16.htm |
+| Jeremiah 10:11 | Rewritten | https://biblehub.com/text/jeremiah/10-11.htm |
+| Jeremiah 16:5 | Rewritten | https://classic.net.bible.org/verse.php?book=Jer&chapter=16&verse=5 |
+| Jeremiah 18:18 | Rewritten | https://biblehub.com/text/jeremiah/18-18.htm |
+| Jeremiah 20:3 | Rewritten | https://biblehub.com/text/jeremiah/20-3.htm |
+| Jeremiah 23:5 | Rewritten | https://biblehub.com/text/jeremiah/23-5.htm |
+| Jeremiah 29:7 | Rewritten | https://biblehub.com/text/jeremiah/29-7.htm |
+| Jeremiah 33:3 | Rewritten | https://classic.net.bible.org/verse.php?book=Jer&chapter=33&verse=3 |
+| Jeremiah 36:23 | Rewritten | https://biblehub.com/text/jeremiah/36-23.htm ; https://biblehub.com/text/jeremiah/36-24.htm |
+| Jeremiah 45:5 | Rewritten | https://biblehub.com/text/jeremiah/45-5.htm |
+| Lamentations 1:1 | Rewritten | https://classic.net.bible.org/passage.php?passage=Lam+1%3A1-4 ; https://biblehub.com/text/lamentations/1-1.htm |
+| Lamentations 3:22 | Rewritten | https://biblehub.com/text/lamentations/3-22.htm |
+
+Resume: Ezekiel original_language.
