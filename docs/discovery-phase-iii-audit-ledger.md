@@ -746,3 +746,38 @@ Resume: Timothy through Philemon original_language.
 | Philemon 1:11 | Rewritten | https://biblehub.com/text/philemon/1-11.htm |
 
 Resume: Hebrews through Revelation original_language.
+
+## Batch 39 — Hebrews through Revelation lexical review
+
+26 entries rewritten and re-queried. Recorded lexical first-pass reviews 533/533. Earlier independent corroboration caveats remain. This completes this category's first pass, not corpus-wide audit.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Hebrews 1:3 | Rewritten | https://biblehub.com/text/hebrews/1-3.htm |
+| Hebrews 2:10 | Rewritten | https://biblehub.com/text/hebrews/2-10.htm |
+| Hebrews 4:8 | Rewritten | https://biblehub.com/text/hebrews/4-8.htm |
+| Hebrews 4:9 | Rewritten | https://biblehub.com/text/hebrews/4-9.htm |
+| Hebrews 5:14 | Rewritten | https://biblehub.com/text/hebrews/5-14.htm |
+| Hebrews 7:2 | Rewritten | https://biblehub.com/text/hebrews/7-2.htm |
+| James 1:1 | Rewritten | https://biblehub.com/text/james/1-1.htm |
+| James 2:2 | Rewritten | https://biblehub.com/text/james/2-2.htm |
+| James 3:17 | Rewritten | https://biblehub.com/text/james/3-17.htm |
+| 1 Peter 1:18 | Rewritten | https://biblehub.com/text/1_peter/1-18.htm |
+| 1 Peter 2:25 | Rewritten | https://biblehub.com/text/1_peter/2-25.htm |
+| 1 Peter 3:21 | Rewritten | https://biblehub.com/text/1_peter/3-21.htm |
+| 1 Peter 4:10 | Rewritten | https://biblehub.com/text/1_peter/4-10.htm |
+| 2 Peter 1:19 | Rewritten | https://biblehub.com/text/2_peter/1-19.htm |
+| 2 Peter 2:4 | Rewritten | https://biblehub.com/text/2_peter/2-4.htm |
+| 1 John 1:9 | Rewritten | https://biblehub.com/text/1_john/1-9.htm |
+| 1 John 2:18 | Rewritten | https://biblehub.com/text/1_john/2-18.htm |
+| 1 John 2:2 | Rewritten | https://biblehub.com/text/1_john/2-2.htm |
+| 1 John 3:17 | Rewritten | https://biblehub.com/text/1_john/3-17.htm |
+| 1 John 4:1 | Rewritten | https://biblehub.com/text/1_john/4-1.htm |
+| 1 John 4:18 | Rewritten | https://biblehub.com/text/1_john/4-18.htm |
+| 3 John 1:9 | Rewritten | https://biblehub.com/text/3_john/1-9.htm |
+| Revelation 19:1 | Rewritten | https://biblehub.com/text/revelation/19-1.htm |
+| Revelation 22:17 | Rewritten | https://biblehub.com/text/revelation/22-17.htm |
+| Revelation 4:10 | Rewritten | https://biblehub.com/text/revelation/4-10.htm |
+| Revelation 9:11 | Rewritten | https://biblehub.com/text/revelation/9-11.htm |
+
+Resume: audit highest-risk scholarly_debate entries, then ancient_culture and remaining categories; revisit prior caveats. Finish licensing/rendering and tests.
