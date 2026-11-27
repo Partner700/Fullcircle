@@ -724,3 +724,25 @@ Resume: Galatians original_language.
 | 2 Thessalonians 3:10 | Rewritten | https://biblehub.com/text/2_thessalonians/3-10.htm |
 
 Resume: Timothy through Philemon original_language.
+
+## Batch 38 — Timothy through Philemon lexical review
+
+13 entries rewritten and re-queried. Recorded lexical reviews 507/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| 1 Timothy 1:17 | Rewritten | https://biblehub.com/text/1_timothy/1-17.htm |
+| 1 Timothy 2:1 | Rewritten | https://www.studylight.org/interlinear-study-bible/greek/1-timothy/2-1.html |
+| 1 Timothy 2:7 | Rewritten | https://biblehub.com/text/1_timothy/2-7.htm |
+| 1 Timothy 3:6 | Rewritten | https://biblehub.com/text/1_timothy/3-6.htm |
+| 1 Timothy 4:7 | Rewritten | https://biblehub.com/text/1_timothy/4-7.htm |
+| 1 Timothy 6:10 | Rewritten | https://biblehub.com/text/1_timothy/6-10.htm |
+| 1 Timothy 6:20 | Rewritten | https://biblehub.com/text/1_timothy/6-20.htm |
+| 2 Timothy 1:6 | Rewritten | https://biblehub.com/text/2_timothy/1-6.htm |
+| 2 Timothy 3:16 | Rewritten | https://biblehub.com/text/2_timothy/3-16.htm |
+| 2 Timothy 4:13 | Rewritten | https://biblehub.com/text/2_timothy/4-13.htm |
+| Titus 2:4 | Rewritten | https://biblehub.com/text/titus/2-4.htm |
+| Titus 3:5 | Rewritten | https://biblehub.com/text/titus/3-5.htm |
+| Philemon 1:11 | Rewritten | https://biblehub.com/text/philemon/1-11.htm |
+
+Resume: Hebrews through Revelation original_language.
