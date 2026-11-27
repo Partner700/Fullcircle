@@ -1460,3 +1460,106 @@ Resume: Job ancient culture.
 | Job 42:15 | Retained | https://www.biblegateway.com/passage/?search=Job+42&version=NET ; https://www.joaomordomo.com/files/books/ebooks/Word%20Biblical%20Commentary%20%28WBC%29%20-%20Vol.%2017%20-%20Job%201-20%20-%20Clines.pdf |
 
 Resume: Psalms ancient culture.
+
+## Batch 64 — Psalms ancient culture
+
+94 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 460/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Psalms 1:3 | Retained | https://www.biblegateway.com/resources/nivac-sample/Ps.1.3-Ps.1.4 |
+| Psalms 4:7 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 9:14 | Retained | https://calvin.edu/sites/default/files/migrated/centers-institutes-meeter-center-files-john-calvins-works-in-english-Commentary-20008---Psalms-Vol.-1.pdf |
+| Psalms 11:3 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Believers-Church-Bible-Commentary-by-James-H.-Waltner-z-lib.org_.pdf |
+| Psalms 12:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+12&version=NET ; https://classic.net.bible.org/verse.php?book=Psa&chapter=12&tab=commentaries&verse=6 |
+| Psalms 15:1 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 15:5 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-155/ |
+| Psalms 16:5 | Retained | https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/psalms/16/5 |
+| Psalms 20:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+20&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 21:3 | Retained | https://cdn.door43.org/en/tn/v11/pdf/en_tn_19-PSA_v11.pdf |
+| Psalms 24:7 | Retained | https://www.biblegateway.com/passage/?search=Psalms+24&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 26:6 | Retained | https://translation.bible/wp-content/uploads/2024/06/kruger-1994-nonverbal-communication-and-symbolic-gestures-in-the-psalms.pdf |
+| Psalms 27:5 | Retained | https://www.biblegateway.com/passage/?search=Psalms+27&version=NET ; https://tips.translation.bible/story/translation-commentary-on-psalm-275-276/ |
+| Psalms 28:2 | Retained | https://www.biblegateway.com/passage/?search=Psalms+28&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=28&tab=commentaries&verse=2 |
+| Psalms 30:11 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Believers-Church-Bible-Commentary-by-James-H.-Waltner-z-lib.org_.pdf |
+| Psalms 31:12 | Retained | https://tips.translation.bible/tip_verse/ps-3112/ |
+| Psalms 32:9 | Retained | https://www.biblegateway.com/passage/?search=Psalms+32&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/psalms/32/9 |
+| Psalms 33:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+33&version=NET ; https://www.rscm.org.uk/wp-content/uploads/2019/10/Session-2-Bible-commentary.pdf |
+| Psalms 35:13 | Retained | https://concordy.org/psa/35/13 |
+| Psalms 36:8 | Retained | https://www.biblegateway.com/passage/?search=Psalms+36&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/psalms/36/8 |
+| Psalms 38:11 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 39:5 | Retained | https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/psalms/39/5 |
+| Psalms 41:9 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-419/ |
+| Psalms 44:1 | Retained | https://www.biblegateway.com/passage/?search=Psalms+44&version=NET ; https://discere.pusc.it/pluginfile.php/131070/mod_folder/content/0/9.4.%20Salmo%2044_Waltke%20-%20Houston%20-%20Moore%2C%20The%20Psalms%20as%20Christian%20Lament%2C%202014%2C%20pp.%20182-209.pdf?forcedownload=1 |
+| Psalms 45:8 | Retained | https://www.biblegateway.com/passage/?search=Psalms+45&version=NET ; https://tips.translation.bible/tip_source/bratcher-reyburn-ubs-helps-for-translators-1991/page/23/ |
+| Psalms 46:4 | Retained | https://classic.net.bible.org/passage.php?passage=Psa+46%3A4 |
+| Psalms 47:5 | Retained | https://www.biblegateway.com/passage/?search=Psalms+47&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 48:12 | Retained | https://old-tips.translation.bible/story/translation-commentary-on-psalm-4812-4814/ |
+| Psalms 49:4 | Retained | https://tips.translation.bible/tip_verse/ps-494/ |
+| Psalms 51:7 | Retained | https://ccel.org/ccel/calvin/calcom09/calcom09.xvii.iii.html |
+| Psalms 52:8 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 54:6 | Retained | https://www.freebiblecommentary.org/old_testament_studies/VOL09BOT/VOL09BOT_54.html |
+| Psalms 55:6 | Revised | https://www.biblegateway.com/passage/?search=Psalms+55&version=NET ; https://tips.translation.bible/story/translation-commentary-on-psalm-556-557-558/ |
+| Psalms 56:8 | Retained | https://www.biblegateway.com/passage/?search=Psalms+56&version=NET ; https://classic.net.bible.org/verse.php?book=Psa&chapter=56&tab=commentaries&theme=wiki&verse=8 |
+| Psalms 57:8 | Retained | https://cdn.door43.org/en/tn/v11/pdf/en_tn_19-PSA_v11.pdf |
+| Psalms 58:4 | Retained | https://www.biblegateway.com/passage/?search=Psalms+58&version=NET ; https://tips.translation.bible/tip_verse/ps-584/ |
+| Psalms 59:6 | Retained | https://drbarrick.org/files/studynotes/Psalms/Ps_059.pdf |
+| Psalms 60:8 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=60&verse=8 |
+| Psalms 61:5 | Retained | https://www.biblegateway.com/resources/matthew-henry/Ps.61.5-Ps.61.8 |
+| Psalms 62:9 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=62&tab=commentaries&verse=9 |
+| Psalms 63:1 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-631/ |
+| Psalms 63:6 | Retained | https://archive.spurgeon.org/treasury/ps063.php |
+| Psalms 65:10 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-659-6510/ |
+| Psalms 66:13 | Retained | https://www.biblegateway.com/passage/?search=Psalms+66&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Interpreting-the-Psalms-An-Exegetical-Handbook-by-Mark-D.-Futato-z-lib.org_.pdf |
+| Psalms 67:6 | Retained | https://www.scriptureanalysis.com/wp-content/uploads/2023/08/The-Oxford-Bible-Commentary.pdf |
+| Psalms 73:17 | Retained | https://www.biblegateway.com/passage/?search=Psalms+73&version=NET ; https://www.andrews.edu/library/car/cardigital/Periodicals/AUSS/2014-1%20archive/2014-1.pdf |
+| Psalms 75:8 | Retained | https://www.biblegateway.com/passage/?search=Psalms+75&version=NET ; https://classic.net.bible.org/verse.php?book=Psa&chapter=75&tab=commentaries&theme=false&verse=8 |
+| Psalms 76:11 | Retained | https://bible.org/seriespage/psalm-76 |
+| Psalms 79:1 | Retained | https://www.thegospelcoalition.org/commentary/psalm-73-psalm-89/ |
+| Psalms 81:3 | Retained | https://www.bibleportal.com/commentary/section/ellicott-s-commentary-for-english-readers/208501 |
+| Psalms 83:6 | Retained | https://cdn.door43.org/en/tn/v11/pdf/en_tn_19-PSA_v11.pdf |
+| Psalms 84:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+84&version=NET ; https://www.kingjamesbibleonline.org/Psalms-84_Commentary-Ellicott/ |
+| Psalms 84:10 | Retained | https://www.biblegateway.com/passage/?search=Psalms+84&version=NET ; https://biblehub.com/commentaries/psalms/84-10.htm |
+| Psalms 85:12 | Retained | https://www.biblegateway.com/passage/?search=Psalms+85&version=NET ; https://classic.net.bible.org/verse.php?book=Psa&chapter=85&tab=commentaries&theme=false&verse=12 |
+| Psalms 87:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+87&version=NET ; https://tips.translation.bible/es/story/translation-commentary-on-psalm-875-876/ |
+| Psalms 92:12 | Retained | https://www.biblegateway.com/passage/?search=Psalms+92&version=NET ; https://www.uecf.net/books/commentary-on-psalms/chapter94.html |
+| Psalms 93:1 | Retained | https://www.freebiblecommentary.org/old_testament_studies/VOL09BOT/VOL09BOT_93.html |
+| Psalms 94:20 | Retained | https://concordy.org/psa/94/20 |
+| Psalms 98:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+98&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-psalm-984-986/ |
+| Psalms 99:1 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=99&tab=commentaries&verse=1 |
+| Psalms 101:6 | Retained | https://www.ccel.org/ccel/s/spurgeon/treasury4/cache/treasury4.pdf |
+| Psalms 103:15 | Retained | https://mfopen.mf.no/mf-xmlui/bitstream/handle/11250/2432781/AVH504-1702-Gr%C3%B8vle-navn.pdf?sequence=1 |
+| Psalms 104:15 | Retained | https://biblenotes.online/resources/adamclarke/pdfsch/psalms104.pdf |
+| Psalms 107:23 | Retained | https://www.biblegateway.com/passage/?search=Psalms+107&version=NET ; https://www.ccel.org/ccel/calvin/calcom11.xvi.iv.html |
+| Psalms 113:1 | Retained | https://www.vandenhoeck-ruprecht-verlage.com/media/pdf/b0/d5/9a/9783647502014_sample.pdf |
+| Psalms 115:4 | Retained | https://www.biblegateway.com/passage/?search=Psalms+115&version=NET ; https://tips.translation.bible/tip_verse/ps-1154/ |
+| Psalms 116:13 | Retained | https://www.biblegateway.com/passage/?search=Psalms+116&version=NET ; https://worship.calvin.edu/resources/articles/i-love-lord-psalm-116 |
+| Psalms 119:105 | Retained | https://freely-given.org/OBD/UBS/Realia/5.1.htm |
+| Psalms 120:5 | Retained | https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=120&tab=commentaries&verse=5 |
+| Psalms 121:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+121&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=121&tab=commentaries&verse=6 |
+| Psalms 122:4 | Retained | https://www.biblegateway.com/passage/?search=Psalms+122&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 123:2 | Retained | https://www.biblegateway.com/passage/?search=Psalms+123&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 124:7 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-1246-1247/ |
+| Psalms 125:2 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 126:4 | Retained | https://www.biblegateway.com/passage/?search=Psalms+126&version=NET ; https://classic.net.bible.org/verse.php?book=Psa&chapter=126&tab=commentaries&theme=wiki&verse=4 |
+| Psalms 126:5 | Retained | https://www.biblegateway.com/passage/?search=Psalms+126&version=NET ; https://classic.net.bible.org/passage.php/passage.php?passage=Psa+126%3A5%2C6 |
+| Psalms 127:5 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=127&tab=commentaries&theme=false&verse=5 |
+| Psalms 128:2 | Retained | https://www.wjkbooks.com/wp-content/uploads/pagecontent/59975yearaaddit_00000032207.pdf |
+| Psalms 128:3 | Retained | https://lemma.gebible.app/v/psalms/128/3 |
+| Psalms 129:6 | Retained | https://kjvstudy.kennethreitz.org/book/Psalms/chapter/129/verse/6 |
+| Psalms 130:6 | Retained | https://drbarrick.org/files/studynotes/Psalms/Ps_130.pdf |
+| Psalms 133:2 | Retained | https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Interpreting-the-Psalms-An-Exegetical-Handbook-by-Mark-D.-Futato-z-lib.org_.pdf |
+| Psalms 133:3 | Retained | https://www.tyndalebulletin.org/article/29434-form-and-experience-dwelling-in-unity-a-cognitive-reading-of-the-metaphors-of-psalm-133/attachment/75031.pdf |
+| Psalms 134:1 | Retained | https://www.biblegateway.com/passage/?search=Psalms+134&version=NET ; https://www.kingjamesbibleonline.org/Psalms-134_Commentary-Ellicott/ |
+| Psalms 135:7 | Retained | https://ccel.org/ccel/calvin/calcom12.xix.ii.html |
+| Psalms 137:2 | Retained | https://tips.translation.bible/story/translation-commentary-on-psalm-1371-1372/ |
+| Psalms 141:2 | Retained | https://www.biblegateway.com/passage/?search=Psalms+141&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Psalms-Understanding-the-Bible-Commentary-Series-by-Craig-C.-Broyles-z-lib.org_.epub-Copy.pdf |
+| Psalms 141:5 | Retained | https://www.biblegateway.com/passage/?search=Psalms+141&version=NET ; https://www.bibleportal.com/commentary/section/ellicott-s-commentary-for-english-readers/209301 |
+| Psalms 142:4 | Retained | https://concordy.org/psa/142/4 |
+| Psalms 143:6 | Retained | https://www.biblegateway.com/passage/?search=Psalms+143&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=143&tab=commentaries&verse=6 |
+| Psalms 144:12 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=144&theme=wiki&verse=12 |
+| Psalms 147:16 | Retained | https://stanmurrell.org/wp-content/uploads/2013/09/devotional-commentaries-treasury-of-david-volume-three-psalms-101-150.pdf |
+| Psalms 149:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+149&version=NET ; https://www.bible.armeniancathedral.org/book/tPs_149.htm?wid=6202 |
+| Psalms 150:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+150&version=NET ; https://tips.translation.bible/story/translation-commentary-on-psalm-1503-1505/ |
+
+Resume: Proverbs ancient culture.
