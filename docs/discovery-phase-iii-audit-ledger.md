@@ -2275,3 +2275,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Ephesians 5:19 | Retained | https://bible.usccb.org/bible/ephesians/5 |
 | Esther 10:2 | Revised | https://www.biblegateway.com/passage/?search=Esther+10&version=NKJV%3BNET ; https://www.sefaria.org/Esther.10?with=Commentary |
 | Esther 10:3 | Retained | https://www.biblegateway.com/passage/?search=Esther+10&version=NKJV%3BNET |
+
+
+## Batch 81 — Scripture detail: Esther, Exodus and Ezekiel
+
+15 first-pass reviews against retrieved NET, USCCB and other published passage excerpts; three rewrites. Exodus 38:25–26: the NET footnote on verse 25 gives 605,550 in error, while the verse 26 text gives 603,550; arithmetic confirms the latter. Retained existing source where already present. Access errors addressed with alternative publications. Cross-references not all independently retrieved. No new images or rendering certification. Separate database readback passed.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Esther 4:14 | Retained | https://bible.usccb.org/bible/esther/0 ; https://www.bible.com/bible/107/EST.4.NET |
+| Esther 4:16 | Retained | https://www.bible.com/bible/107/EST.4.NET ; https://www.biblegateway.com/passage/?search=Esther+5&version=NET%3BNKJV |
+| Esther 5:8 | Revised | https://www.biblegateway.com/passage/?search=Esther+5&version=NET%3BNKJV ; https://www.bible.com/bible/107/EST.6.NET |
+| Exodus 20:1 | Retained | https://bible.usccb.org/bible/exodus/20 ; https://wels.net/faq/numbering-of-ten-commandments/ |
+| Exodus 27:18 | Retained | https://www.biblegateway.com/passage/?search=Exodus+27%3A18&version=NET%3BNKJV%3BNIV |
+| Exodus 35:34 | Retained | https://bible.usccb.org/bible/exodus/35 |
+| Exodus 36:6 | Retained | https://www.bible.com/bible/107/EXO.36.NET |
+| Exodus 37:1 | Retained | https://bible.usccb.org/bible/exodus/37 |
+| Exodus 38:25 | Revised | https://www.bible.com/bible/107/EXO.38.NET |
+| Exodus 40:17 | Retained | https://bible.usccb.org/bible/exodus/40 |
+| Exodus 8:1 | Retained | https://www.bible.com/bible/107/EXO.8.NET |
+| Ezekiel 10:15 | Retained | https://bible.usccb.org/bible/ezekiel/10 |
+| Ezekiel 11:16 | Revised | https://www.bible.com/bible/107/EZK.11.NET |
+| Ezekiel 15:4 | Retained | https://bible.usccb.org/bible/ezekiel/15 |
+| Ezekiel 16:49 | Retained | https://www.bible.com/bible/107/EZK.16.NET |
