@@ -2090,3 +2090,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Numbers 6:25 | Revised | https://cojs.org/silver_scroll_amulets_from_ketef_hinnom-_c-_600_bce/ ; https://cris.tau.ac.il/en/publications/a-new-appraisal-of-the-silver-amulets-from-ketef-hinnom/ |
 | Revelation 3:17 | Retained | https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Tacitus/Annals/14a%2A.html ; rewritten summary of https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Tacitus/Annals/14a*.html ; https://uir.unisa.ac.za/server/api/core/bitstreams/ae450bec-6cfe-4bbb-97f5-91337225c622/content |
 | Zechariah 1:1 | Retained | https://bible.usccb.org/bible/zechariah/1 ; https://www.sbl-site.org/assets/pdfs/pubs/062607P.front.pdf |
+
+
+## Batch 73 — Scripture detail: 1 Chronicles (first pass)
+
+15 live rows reviewed against published biblical text. All 15 source notes updated and independently re-read; two facts revised to distinguish translation and textual reconstruction. Biblical-text verification, not independent archaeological corroboration. USCCB chapter 12 uses verse numbering one higher than the NET; NET references used for the two affected rows. No images added.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Chronicles 1:1 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+1&version=NET |
+| 1 Chronicles 10:13 | Retained | https://bible.usccb.org/bible/1chronicles/10 |
+| 1 Chronicles 11:9 | Retained | https://bible.usccb.org/bible/1chronicles/11 |
+| 1 Chronicles 12:18 | Revised | https://classic.net.bible.org/verse.php?book=1Ch&chapter=12&verse=18 |
+| 1 Chronicles 12:32 | Retained | https://classic.net.bible.org/bible.php?book=1Ch&chapter=12&mode=print |
+| 1 Chronicles 13:14 | Retained | https://bible.usccb.org/bible/1chronicles/13 |
+| 1 Chronicles 14:2 | Retained | https://bible.usccb.org/bible/1chronicles/14 |
+| 1 Chronicles 16:39 | Retained | https://bible.usccb.org/bible/1chronicles/16 |
+| 1 Chronicles 19:2 | Retained | https://bible.usccb.org/bible/1chronicles/19 |
+| 1 Chronicles 22:19 | Retained | https://classic.net.bible.org/passage.php?mode=print&passage=1Ch+22%3A2-19 |
+| 1 Chronicles 22:5 | Retained | https://classic.net.bible.org/passage.php?mode=print&passage=1Ch+22%3A2-19 |
+| 1 Chronicles 23:3 | Retained | https://bible.usccb.org/bible/1chronicles/23 |
+| 1 Chronicles 25:1 | Retained | https://bible.usccb.org/bible/1chronicles/25 |
+| 1 Chronicles 25:7 | Revised | https://www.bible.com/bible/107/1CH.25.NET |
+| 1 Chronicles 27:1 | Retained | https://ebible.org/study/content/texts/engnet/R127.html |
