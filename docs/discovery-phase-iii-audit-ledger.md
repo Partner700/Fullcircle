@@ -2438,3 +2438,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Luke 3:23 | Retained | https://www.biblegateway.com/passage/?search=Matthew+1%3A1-17%3B+Luke+3%3A23b-38%3B+John+1%3A1-18%3B+Luke+1%3A1-25&version=NKJV ; https://classic.net.bible.org/passage.php?passage=Luk+3%3A31; primary text or relevant excerpt/commentary consulted |
 | Luke 5:39 | Revised | https://classic.net.bible.org/bible.php?book=Luk&chapter=5; primary text or relevant excerpt/commentary consulted |
 | Luke 7:41 | Revised | https://bible.usccb.org/bible/luke/7; primary text or relevant excerpt/commentary consulted |
+
+
+## Batch 87 — Scripture detail: Luke through Nehemiah 12
+
+20 editorial reviews and five rewrites; source pages and search excerpts actually retrieved for the primary passages or relevant commentary. Seven entries have explicit outstanding secondary or cross-reference checks. HTTP 403 on nine USCCB pages addressed with alternatives. Readback verified both retained and revised facts and notes; optimistic guard on original fact. No illustration or UI rendering certification.
+
+| Reference | Verdict | Sources / remaining limitations |
+|---|---|---|
+| Luke 8:43 | Retained | https://bible.usccb.org/bible/luke/8 |
+| Malachi 2:14 | Revised | https://bible.usccb.org/bible/malachi/2 |
+| Mark 11:13 | Retained | https://www.biblegateway.com/passage/?search=Mark+11%3A12-25&version=NET; Jeremiah cross-reference pending |
+| Mark 15:21 | Retained | https://bible.usccb.org/bible/mark/15; Cyrene geography, Acts and Romans cross-references pending |
+| Mark 4:38 | Retained | https://bible.usccb.org/bible/mark/4 ; https://biblehub.com/lexicon/mark/4-38.htm; Synoptic comparison pending |
+| Mark 6:40 | Revised | https://bible.usccb.org/bible/mark/6 ; https://biblija.net/greek-dictionary/prasia |
+| Mark 8:24 | Retained | https://classic.net.bible.org/bible.php?book=Mar&chapter=8; literary interpretation remains to corroborate |
+| Matthew 1:17 | Retained | https://bible.usccb.org/bible/matthew/1 |
+| Matthew 12:42 | Retained | https://bible.usccb.org/bible/matthew/12 ; https://bible.usccb.org/bible/1kings/10 |
+| Matthew 14:24 | Retained | https://classic.net.bible.org/passage.php?passage=Mat+14%3A23-25 ; https://lemma.gebible.app/v/matthew/14/24 ; https://bible.usccb.org/bible/john/6; precise manuscript witness comparison pending |
+| Matthew 15:22 | Retained | https://bible.usccb.org/bible/matthew/15 ; https://bible.usccb.org/bible/mark/7 |
+| Matthew 18:24 | Revised | https://bible.usccb.org/bible/matthew/18 ; https://classic.net.bible.org/verse.php?book=Mat&chapter=18&verse=24 |
+| Matthew 24:32 | Retained | https://www.biblegateway.com/passage/?search=Matt+24%3A32-36&version=NIV |
+| Matthew 4:15 | Retained | https://bible.usccb.org/bible/matthew/4 ; https://bible.usccb.org/bible/2kings/15 |
+| Matthew 7:24 | Retained | https://bible.usccb.org/bible/matthew/7 ; https://classic.net.bible.org/verse.php?book=Luk&chapter=6&theme=false&verse=48 |
+| Micah 2:11 | Retained | https://classic.net.bible.org/verse.php?book=Mic&chapter=2&verse=11 |
+| Micah 3:5 | Retained | https://classic.net.bible.org/verse.php?book=mic&chapter=3&verse=5; verse 11 cross-reference pending |
+| Micah 6:4 | Retained | https://www.biblegateway.com/passage/?search=Micah+6%3A4&version=NIV; Exodus cross-reference pending |
+| Nehemiah 10:32 | Revised | https://www.biblegateway.com/verse/en/Nehemiah%2010%3A32 ; https://classic.net.bible.org/verse.php?book=exo&chapter=30&verse=13 |
+| Nehemiah 12:31 | Revised | https://www.biblegateway.com/passage/?search=Nehemiah+12%3A31-42&version=NIV |
