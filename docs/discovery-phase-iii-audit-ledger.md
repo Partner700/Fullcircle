@@ -2466,3 +2466,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Micah 6:4 | Retained | https://www.biblegateway.com/passage/?search=Micah+6%3A4&version=NIV; Exodus cross-reference pending |
 | Nehemiah 10:32 | Revised | https://www.biblegateway.com/verse/en/Nehemiah%2010%3A32 ; https://classic.net.bible.org/verse.php?book=exo&chapter=30&verse=13 |
 | Nehemiah 12:31 | Revised | https://www.biblegateway.com/passage/?search=Nehemiah+12%3A31-42&version=NIV |
+
+
+## Batch 88 — Scripture detail: Nehemiah through Numbers 4
+
+20 editorial reviews and seven rewrites. NET, USCCB and Bible Gateway published texts or relevant search excerpts retrieved; seven entries have explicit remaining source checks. Alternative publications used when chapter access returned 403. Census and inheritance entries differentiated. All 20 rows read back against expected facts and notes. This is not comprehensive secondary corroboration, illustration licensing or production UI certification.
+
+| Reference | Verdict | Sources / remaining limitations |
+|---|---|---|
+| Nehemiah 2:6 | Retained | https://classic.net.bible.org/bible.php?book=Neh&chapter=2 |
+| Nehemiah 3:12 | Revised | https://classic.net.bible.org/bible.php?book=Neh&chapter=3 |
+| Nehemiah 5:14 | Revised | https://classic.net.bible.org/bible.php?book=Neh&chapter=5 |
+| Nehemiah 7:2 | Retained | https://classic.net.bible.org/bible.php?book=Neh&chapter=7 |
+| Nehemiah 9:3 | Revised | https://classic.net.bible.org/bible.php?book=Neh&chapter=9 |
+| Numbers 1:46 | Retained | https://www.biblegateway.com/passage/?search=Numbers+1%3A46-48&version=NET; Exodus cross-reference not independently retrieved in this batch |
+| Numbers 11:32 | Retained | https://bible.usccb.org/bible/numbers/11; homer-to-ephah and modern volume conversion pending independent check |
+| Numbers 18:26 | Revised | https://classic.net.bible.org/bible.php?book=Num&chapter=18 |
+| Numbers 2:33 | Retained | https://bible.usccb.org/bible/numbers/2; Genesis and Joshua cross-references pending |
+| Numbers 26:33 | Revised | https://bible.usccb.org/bible/numbers/26 |
+| Numbers 26:51 | Retained | https://bible.usccb.org/bible/numbers/26 ; https://www.biblegateway.com/passage/?search=Numbers+1%3A46-48&version=NET |
+| Numbers 28:3 | Retained | https://bible.usccb.org/bible/numbers/28; Ezra cross-reference pending |
+| Numbers 29:12 | Retained | https://bible.usccb.org/bible/numbers/29; Talmud interpretation pending |
+| Numbers 3:50 | Retained | https://bible.usccb.org/bible/numbers/3 |
+| Numbers 33:2 | Retained | https://classic.net.bible.org/bible.php?book=Num&chapter=33; Exodus cross-references pending |
+| Numbers 33:38 | Retained | https://classic.net.bible.org/bible.php?book=Num&chapter=33 |
+| Numbers 34:17 | Retained | https://classic.net.bible.org/bible.php?book=Num&chapter=34 |
+| Numbers 35:7 | Revised | https://bible.usccb.org/bible/numbers/35 |
+| Numbers 36:11 | Revised | https://bible.usccb.org/bible/numbers/36 ; https://bible.usccb.org/bible/numbers/26 |
+| Numbers 4:3 | Retained | https://www.biblegateway.com/passage/?search=Numbers+4%3A3%2C30%2C47%3B8%3A23-26%3B+1+Chronicles+23%3A3%2C24%2C27%3B+Ezra+3%3A8&version=NABRE; commentary and search excerpt retrieved; full comparative passages pending |
