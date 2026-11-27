@@ -597,3 +597,28 @@ Resume: Matthew original_language.
 | Matthew 8:8 | Rewritten | https://biblehub.com/text/matthew/8-8.htm |
 
 Resume: Mark original_language.
+
+## Batch 33 — Mark and Luke lexical review
+
+16 entries rewritten and re-queried. Recorded lexical reviews 428/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Mark 1:15 | Rewritten | https://biblehub.com/text/mark/1-15.htm |
+| Mark 10:46 | Rewritten | https://biblehub.com/text/mark/10-46.htm |
+| Mark 10:52 | Rewritten | https://biblehub.com/text/mark/10-52.htm |
+| Mark 14:36 | Rewritten | https://biblehub.com/text/mark/14-36.htm |
+| Mark 3:17 | Rewritten | https://biblehub.com/text/mark/3-17.htm |
+| Mark 5:41 | Rewritten | https://biblehub.com/text/mark/5-41.htm |
+| Mark 5:9 | Rewritten | https://biblehub.com/text/mark/5-9.htm |
+| Mark 6:3 | Rewritten | https://biblehub.com/text/mark/6-3.htm |
+| Mark 7:11 | Rewritten | https://biblehub.com/text/mark/7-11.htm |
+| Mark 8:19 | Rewritten | https://biblehub.com/text/mark/8-19.htm ; https://biblehub.com/text/mark/8-20.htm |
+| Luke 12:42 | Rewritten | https://biblehub.com/text/luke/12-42.htm |
+| Luke 18:13 | Rewritten | https://biblehub.com/text/luke/18-13.htm |
+| Luke 2:7 | Rewritten | https://biblehub.com/text/luke/2-7.htm |
+| Luke 21:24 | Rewritten | https://biblehub.com/text/luke/21-24.htm |
+| Luke 22:31 | Rewritten | https://biblehub.com/text/luke/22-31.htm ; https://biblehub.com/text/luke/22-32.htm |
+| Luke 9:31 | Rewritten | https://biblehub.com/text/luke/9-31.htm |
+
+Resume: John original_language.
