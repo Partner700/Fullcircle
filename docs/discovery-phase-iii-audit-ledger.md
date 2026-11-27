@@ -1381,3 +1381,44 @@ Resume: Chronicles ancient culture.
 | 2 Chronicles 35:25 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+35&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=2Ch&chapter=35&verse=25 |
 
 Resume: Ezra ancient culture.
+
+## Batch 62 — Ezra, Nehemiah and Esther ancient culture
+
+32 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 337/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Esther 1:6 | Retained | https://www.biblegateway.com/passage/?search=Esther+1&version=NET ; https://classic.net.bible.org/passage.php?passage=est+1%3A5%2C6 |
+| Esther 2:12 | Retained | https://www.biblegateway.com/passage/?search=Esther+2&version=NET ; https://classic.net.bible.org/verse.php?book=est&chapter=2&verse=12 |
+| Esther 3:12 | Retained | https://www.biblegateway.com/passage/?search=Esther+3&version=NET ; https://classic.net.bible.org/verse.php?book=est&chapter=3&verse=12 |
+| Esther 5:2 | Retained | https://www.biblegateway.com/passage/?search=Esther+5&version=NET ; https://old-tips.translation.bible/tip_verse/esth-52/ |
+| Esther 6:1 | Retained | https://www.biblegateway.com/passage/?search=Esther+6&version=NET ; https://git.door43.org/unfoldingWord/en_tn/releases/download/v80/en_tn_17-EST_v80.pdf |
+| Esther 6:8 | Retained | https://www.biblegateway.com/passage/?search=Esther+6&version=NET ; https://dougmcintosh.org/pdf/CommentaryOT/CommentaryOTDanielEsther.pdf |
+| Esther 7:8 | Retained | https://www.biblegateway.com/passage/?search=Esther+7&version=NET ; https://hebrewbible.app/en/resources/commentary/Esther.7.8 |
+| Esther 8:2 | Retained | https://www.biblegateway.com/passage/?search=Esther+8&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-esther-82/ |
+| Esther 8:15 | Retained | https://www.biblegateway.com/passage/?search=Esther+8&version=NET ; https://tips.translation.bible/tip_verse/esth-815/ |
+| Esther 9:22 | Retained | https://www.biblegateway.com/passage/?search=Esther+9&version=NET ; https://www.chabad.org/library/article_cdo/aid/2821549/jewish/Dvar-Torah-Questions-and-Answers-on-Megillat-Esther.htm |
+| Ezra 1:1 | Retained | https://www.biblegateway.com/passage/?search=Ezra+1&version=NET ; https://www.thegospelcoalition.org/commentary/ezra/ |
+| Ezra 2:70 | Retained | https://www.biblegateway.com/passage/?search=Ezra+2&version=NET ; https://asset.library.wisc.edu/1711.dl/RESUCIIMPT7758I/R/file-09d01.pdf |
+| Ezra 4:13 | Retained | https://www.biblegateway.com/passage/?search=Ezra+4&version=NET ; https://tips.translation.bible/tip_verse/ezra-413/ |
+| Ezra 5:3 | Retained | https://www.biblegateway.com/passage/?search=Ezra+5&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/ezra/5/3 |
+| Ezra 6:2 | Retained | https://www.biblegateway.com/passage/?search=Ezra+6&version=NET ; https://btsoparchives.com/archive/files/Commentaries/Ezra%2CNehemiah%2CEster%20-%20Ratzlaff%20And%20Butler.pdf |
+| Ezra 7:6 | Retained | https://www.biblegateway.com/passage/?search=Ezra+7&version=NET ; https://www.ccbiblestudy.org/Topics/77Study/77Study-E/770133%E3%80%8ANIV%20Commentries%20-%20Ezra%20to%20Nehemiah%E3%80%8B%28College%20Press%29.pdf |
+| Ezra 7:26 | Retained | https://www.biblegateway.com/passage/?search=Ezra+7&version=NET ; https://publikationen.uni-tuebingen.de/xmlui/bitstream/handle/10900/126766/Schmid_221.pdf?sequence=1 |
+| Ezra 8:34 | Retained | https://www.biblegateway.com/passage/?search=Ezra+8&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezra-834/ |
+| Ezra 9:3 | Retained | https://www.biblegateway.com/passage/?search=Ezra+9&version=NET ; https://new.bible.org/seriespage/ezra-9 |
+| Ezra 10:8 | Retained | https://www.biblegateway.com/passage/?search=Ezra+10&version=NET ; https://icotb.org/wp-content/uploads/2024/12/Ezra-Nehemiah-and-Esther-by-Ruben-Ratzlaff-and-Paul-T.-Butler.pdf |
+| Nehemiah 1:1 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+1&version=NET ; https://www.thegospelcoalition.org/commentary/nehemiah/ |
+| Nehemiah 1:11 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+1&version=NET ; https://icotb.org/wp-content/uploads/2024/12/Ezra-Nehemiah-and-Esther-by-Ruben-Ratzlaff-and-Paul-T.-Butler.pdf |
+| Nehemiah 2:8 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+2&version=NET ; https://git.door43.org/unfoldingWord/en_tn/releases/download/v77/en_tn_16-NEH_v77.pdf |
+| Nehemiah 3:8 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+3&version=NET ; https://ccbiblestudy.net/~ccbibles/Topics/77Study/77Study-E/770133%E3%80%8ANIV%20Commentries%20-%20Ezra%20to%20Nehemiah%E3%80%8B%28College%20Press%29.pdf |
+| Nehemiah 5:4 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+5&version=NET ; https://ora.ox.ac.uk/objects/uuid%3A34b44f1b-fc00-4262-acdd-4d6a18cbc73b/files/d6d56zx24w |
+| Nehemiah 6:15 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+6&version=NET ; https://learninghouse.ca/wp-content/uploads/2025/02/br461-sample.pdf |
+| Nehemiah 8:4 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+8&version=NET ; https://en.wikisource.org/wiki/Biblical_commentary_the_Old_Testament/Volume_II._Historical_Books/Nehemiah |
+| Nehemiah 10:34 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+10&version=NET ; https://tips.translation.bible/tip_verse/neh-1034/ |
+| Nehemiah 11:1 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+11&version=NET ; https://bible.org/book/export/html/21660 |
+| Nehemiah 11:23 | Revised | https://www.biblegateway.com/passage/?search=Nehemiah+11&version=NET ; https://classic.net.bible.org/verse.php?book=Neh&chapter=11&theme=false&verse=23 |
+| Nehemiah 12:27 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+12&version=NET ; https://classic.net.bible.org/verse.php?book=neh&chapter=12&verse=27 |
+| Nehemiah 13:5 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+13&version=NET ; https://tips.translation.bible/story/translation-commentary-on-nehemiah-135/ |
+
+Resume: Job ancient culture.
