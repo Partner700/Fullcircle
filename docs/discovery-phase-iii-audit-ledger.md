@@ -75,3 +75,26 @@ Continue Genesis original-language entries excluding the 20 Genesis references l
 | Genesis 49:4 | Retained; source specified | https://www.bible.com/bible/107/GEN.49.NET |
 | Genesis 50:20 | Retained; source specified | https://biblehub.com/text/genesis/50-20.htm |
 Resume: remaining Exodus lexical records, then other books and categories.
+
+## Batch 14 — Remaining Exodus lexical audit
+
+15 source-reviewed updates confirmed by independent database re-query. Exodus original-language pass: 23 of 23 recorded reviews. Genesis plus Exodus lexical pass: 74 of 74.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Exodus 1:11 | Retained; source specified | https://www.bible.com/bible/107/EXO.1.NET |
+| Exodus 2:10 | Rewritten for precision | https://www.bible.com/bible/107/EXO.2.NET |
+| Exodus 4:10 | Retained; source specified | https://www.bible.com/bible/107/EXO.4.NET |
+| Exodus 4:16 | Retained; source specified | https://www.bible.com/bible/107/EXO.4.NET |
+| Exodus 5:1 | Retained; source specified | https://biblehub.com/hebrew/2287.htm |
+| Exodus 6:12 | Retained; source specified | https://www.bible.com/bible/107/EXO.6.NET |
+| Exodus 7:1 | Retained; source specified | https://www.bible.com/bible/107/EXO.7.NET |
+| Exodus 10:21 | Rewritten for precision | https://www.bible.com/bible/107/EXO.10.NET |
+| Exodus 11:7 | Retained; source specified | https://www.bible.com/bible/107/EXO.11.NET |
+| Exodus 13:18 | Retained; source specified | https://www.bible.com/bible/107/EXO.13.NET |
+| Exodus 16:15 | Retained; source specified | https://bible.usccb.org/bible/exodus/16 |
+| Exodus 18:3 | Rewritten for precision | https://www.biblegateway.com/passage/?search=Exodus+18%3A2-4&version=NET |
+| Exodus 24:10 | Rewritten for precision | https://biblehub.com/strongs/new/hebrew/5601.htm |
+| Exodus 31:13 | Retained; source specified | https://biblehub.com/hebrew/ot_226.htm |
+| Exodus 33:11 | Retained; source specified | https://classic.net.bible.org/bible.php?book=Exo&chapter=33&mode=print&theme=false |
+Resume: Leviticus original-language entries, then Numbers and Deuteronomy.
