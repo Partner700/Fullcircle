@@ -1146,3 +1146,33 @@ Resume: Deuteronomy ancient culture.
 | Deuteronomy 16:18 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Deu&chapter=16&tab=commentaries&theme=false&verse=18 |
 
 Resume: Deuteronomy 17:18 onwards.
+
+## Batch 56 — Deuteronomy ancient culture, part 2
+
+21 existing entries rewritten against the linked passages. A separate database read matched all 21 revised facts and source notes. Ancient culture cumulative 145/850. Live chapter coverage 1,189/1,189 across 2,401 rows. USCCB Deuteronomy 23:20 and 23:26 correspond to 23:19 and 23:25 in the app.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Deuteronomy 17:18 | Rewritten | https://bible.usccb.org/bible/deuteronomy/17 |
+| Deuteronomy 18:8 | Rewritten | https://bible.usccb.org/bible/deuteronomy/18 ; https://classic.net.bible.org/passage.php?passage=deu+18%3A6-8 |
+| Deuteronomy 19:3 | Rewritten | https://bible.usccb.org/bible/deuteronomy/19 |
+| Deuteronomy 19:14 | Rewritten | https://bible.usccb.org/bible/deuteronomy/19 |
+| Deuteronomy 20:6 | Rewritten | https://bible.usccb.org/bible/deuteronomy/20 |
+| Deuteronomy 21:17 | Rewritten | https://bible.usccb.org/bible/deuteronomy/21 |
+| Deuteronomy 22:8 | Rewritten | https://bible.usccb.org/bible/deuteronomy/22 |
+| Deuteronomy 23:19 | Rewritten | https://bible.usccb.org/bible/deuteronomy/23 ; https://www.openbible.com/text/deuteronomy/23-19.htm |
+| Deuteronomy 23:25 | Rewritten | https://bible.usccb.org/bible/deuteronomy/23 |
+| Deuteronomy 24:6 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+24&version=NET |
+| Deuteronomy 24:15 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+24&version=NET |
+| Deuteronomy 25:13 | Rewritten | https://bible.usccb.org/bible/deuteronomy/25 |
+| Deuteronomy 26:12 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+26&version=NET |
+| Deuteronomy 27:2 | Rewritten | https://bible.usccb.org/bible/deuteronomy/27 |
+| Deuteronomy 27:12 | Rewritten | https://bible.usccb.org/bible/deuteronomy/27 |
+| Deuteronomy 28:23 | Rewritten | https://bible.usccb.org/bible/deuteronomy/28 |
+| Deuteronomy 28:5 | Rewritten | https://bible.usccb.org/bible/deuteronomy/28 |
+| Deuteronomy 31:10 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+31&version=NET |
+| Deuteronomy 31:19 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+31&version=NET |
+| Deuteronomy 33:19 | Rewritten | https://bible.usccb.org/bible/deuteronomy/33 |
+| Deuteronomy 34:5 | Rewritten | https://bible.usccb.org/bible/deuteronomy/34 |
+
+Resume: Joshua ancient culture. Prior corroboration, other categories, illustration rights and live rendering checks remain open.
