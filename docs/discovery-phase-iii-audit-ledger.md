@@ -194,3 +194,37 @@ Resume: Joshua original_language, then Judges and subsequent books in canon orde
 | Ruth 4:17 | Retained; source specified | Ruth 4:14–22; NET note on the meaning of Obed: https://www.biblegateway.com/passage/?search=Ruth+4%3A16-18&version=NET |
 
 Resume: 1 Samuel original_language.
+
+## Batch 19 — Samuel lexical pass
+
+25 source-reviewed updates re-queried. Cumulative recorded lexical reviews: 160.
+
+| Reference | Verdict | Source note |
+|---|---|---|
+| 1 Samuel 1:20 | Retained; source specified | 1 Samuel 1:20,27–28; NET name note: https://classic.net.bible.org/verse.php?book=1Sa&chapter=1&verse=20 |
+| 1 Samuel 3:7 | Retained; source specified | 1 Samuel 3:1–10; NET and comparative translations: https://classic.net.bible.org/verse.php?book=1Sa&chapter=3&verse=7 |
+| 1 Samuel 3:19 | Retained; source specified | 1 Samuel 3:19–20; 2 Kings 10:10; Hebrew morphology, H5307: https://biblehub.com/text/1_samuel/3-19.htm |
+| 1 Samuel 4:4 | Retained; source specified | 1 Samuel 4:4; Isaiah 6:3; Brown–Driver–Briggs H6635, army or host: https://biblehub.com/hebrew/6635.htm |
+| 1 Samuel 4:21 | Retained; source specified | 1 Samuel 4:19–22; NET Hebrew note and translation comparison: https://classic.net.bible.org/verse.php?book=1Sa&chapter=4&verse=21 |
+| 1 Samuel 7:12 | Retained; source specified | 1 Samuel 4:1; 7:12; NET place-name note: https://classic.net.bible.org/verse.php?book=1Sa&chapter=7&verse=12 |
+| 1 Samuel 9:9 | Retained; source specified | 1 Samuel 9:9; 2 Samuel 24:11; NET historical vocabulary: https://classic.net.bible.org/verse.php/verse.php?book=1Sa&chapter=9&verse=9 |
+| 1 Samuel 13:21 | Rewritten | 1 Samuel 13:20–21; NET note on excavated weights: https://bible.sabda.org/passage.php?passage=1Sa+13%3A1-23&tab=text ; Interactive Archaeological Map, Pim weight: https://biblical-archaeology.org/en/dictionary_terms/pim-weight/ |
+| 1 Samuel 17:40 | Retained; source specified | 1 Samuel 16:11; 17:40; Brown–Driver–Briggs H3219, yalqut: https://biblehub.com/hebrew/3219.htm |
+| 1 Samuel 18:18 | Rewritten | 1 Samuel 18:18; Joshua 7:14; Hebrew text and morphology, H4940: https://biblehub.com/text/1_samuel/18-18.htm |
+| 1 Samuel 20:14 | Rewritten | 1 Samuel 20:14–17; 2 Samuel 9:1–7; Brown–Driver–Briggs H2617, chesed: https://biblehub.com/hebrew/2617.htm |
+| 1 Samuel 22:2 | Retained; source specified | 1 Samuel 22:2; 1:10; NET literal idiom note: https://classic.net.bible.org/passage.php?passage=1Sa+22%3A2 |
+| 1 Samuel 23:16 | Retained; source specified | 1 Samuel 23:16; Ezra 6:22; NET Hebrew idiom note: https://classic.net.bible.org/verse.php?book=1Sa&chapter=23&verse=16 |
+| 1 Samuel 23:28 | Retained; source specified | 1 Samuel 23:28–29; NET place-name note: https://www.biblegateway.com/passage/?search=1+Samuel+23%3A28-29&version=NET |
+| 1 Samuel 25:25 | Retained; source specified | 1 Samuel 25:25; Psalm 14:1; Isaiah 32:6; NET name note: https://classic.net.bible.org/verse.php?book=1Sa&chapter=25&verse=25 |
+| 1 Samuel 26:20 | Rewritten | 1 Samuel 26:20; Jeremiah 17:11; Brown–Driver–Briggs H7124: https://biblehub.com/hebrew/7124.htm |
+| 1 Samuel 29:3 | Retained; source specified | 1 Samuel 29:3; 4:6; 13:19; NET Hebrew and comparison: https://classic.net.bible.org/verse.php?book=1Sa&chapter=29&verse=3 |
+| 2 Samuel 2:8 | Retained; source specified | 2 Samuel 2:8; 1 Chronicles 8:33; NET name note: https://classic.net.bible.org/verse.php?book=2Sa&chapter=2&verse=8 |
+| 2 Samuel 4:2 | Rewritten | 2 Samuel 4:2–3; Joshua 9:17; 18:25; Hebrew text: https://biblehub.com/text/2_samuel/4-2.htm |
+| 2 Samuel 7:12 | Retained; source specified | 2 Samuel 7:12–14; 1 Kings 8:20; Hebrew text and morphology, H2233: https://biblehub.com/text/2_samuel/7-12.htm |
+| 2 Samuel 8:15 | Rewritten | 2 Samuel 8:15; Psalm 72:1–4; Hebrew text and morphology, H4941 and H6666: https://biblehub.com/text/2_samuel/8-15.htm |
+| 2 Samuel 12:25 | Rewritten | 2 Samuel 12:24–25; Brown–Driver–Briggs H3041: https://biblehub.com/hebrew/3041.htm ; NET name note: https://classic.net.bible.org/verse.php?book=2Sa&chapter=12&theme=wiki&verse=25 |
+| 2 Samuel 13:18 | Retained; source specified | 2 Samuel 13:18; Genesis 37:3,23,32; NET clothing note: https://classic.net.bible.org/passage.php?passage=2Sa+13%3A18 |
+| 2 Samuel 14:14 | Rewritten | 2 Samuel 14:13–14; NET Hebrew note and translation comparison: https://classic.net.bible.org/verse.php?book=2Sa&chapter=14&verse=14 |
+| 2 Samuel 22:3 | Rewritten | 2 Samuel 22:2–3; Psalm 18:2; Hebrew text and morphology: https://biblehub.com/text/2_samuel/22-3.htm |
+
+Resume: 1 Kings original_language.
