@@ -98,3 +98,23 @@ Resume: remaining Exodus lexical records, then other books and categories.
 | Exodus 31:13 | Retained; source specified | https://biblehub.com/hebrew/ot_226.htm |
 | Exodus 33:11 | Retained; source specified | https://classic.net.bible.org/bible.php?book=Exo&chapter=33&mode=print&theme=false |
 Resume: Leviticus original-language entries, then Numbers and Deuteronomy.
+
+## Batch 15 — Leviticus lexical audit
+
+12 source-reviewed updates confirmed by independent database re-query. Leviticus original-language pass: 12/12. Cumulative first three books: 86 recorded lexical reviews.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Leviticus 1:2 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Lev&chapter=1&verse=2 |
+| Leviticus 3:1 | Retained; source specified | https://bible.usccb.org/bible/leviticus/3 |
+| Leviticus 4:3 | Retained; source specified | https://bible.usccb.org/bible/leviticus/4 |
+| Leviticus 8:33 | Rewritten for precision and reduced repetition | https://www.biblegateway.com/passage/?search=Lev.8&version=NET |
+| Leviticus 10:1 | Retained; source specified | https://www.biblegateway.com/passage/?search=Leviticus+10&version=NET%3BNIV |
+| Leviticus 13:2 | Retained; source specified | https://www.jewishbible.org/articles/laws-of-tzaraat-in-leviticus-13-14-and-medical-leprosy/ |
+| Leviticus 15:13 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Lev+14%3A5-6%2C50-52%3B15%3A13 |
+| Leviticus 16:8 | Rewritten for precision and reduced repetition | https://classic.net.bible.org/bible.php?book=Lev&chapter=16 |
+| Leviticus 17:7 | Retained; source specified | https://biblehub.com/hebrew/8163.htm |
+| Leviticus 17:11 | Retained; source specified | https://biblehub.com/strongs/hebrew/5315.htm |
+| Leviticus 20:24 | Retained; source specified | https://biblehub.com/strongs/hebrew/914.htm |
+| Leviticus 23:2 | Retained; source specified | https://study.bible.org/byverse/Leviticus%2B23 |
+Resume: Numbers and Deuteronomy original-language entries.
