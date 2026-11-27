@@ -998,3 +998,27 @@ Resume: remaining Genesis ancient_culture entries.
 | Genesis 50:2 | Rewritten with museum evidence | https://classic.net.bible.org/passage.php/xml/passage.php?passage=Gen+50%3A2%2C3 ; https://www.metmuseum.org/art/collection/search/587568 |
 
 Resume: Exodus ancient_culture.
+
+## Batch 50 — Exodus ancient culture, part 1
+
+15 existing entries reviewed against retrieved sources; three rewritten, twelve retained with added sources. Cumulative ancient culture first pass 45/850. Independent corroboration beyond the cited excerpts remains necessary for broader historical claims.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Exodus 3:5 | Retained; source checked | https://classic.net.bible.org/verse.php/verse.php?book=Exo&chapter=3&verse=5 ; https://classic.net.bible.org/verse.php?book=Jos&chapter=5&verse=15 |
+| Exodus 5:7 | Rewritten | https://tyndalehouse.com/2021/12/07/the-rekhmire-tomb-scenes/ ; https://cojs.org/leather_scroll-_quota_for_brick-making-_1274_bce/ |
+| Exodus 7:11 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Exo&chapter=7&tab=commentaries&theme=false&verse=11 |
+| Exodus 9:31 | Retained; source checked | https://study.bible.org/byverse/Exodus%2B9 ; https://www.biblegateway.com/passage/?search=Exodus+9%3A31-33&version=NET |
+| Exodus 10:2 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Exo&chapter=10&tab=commentaries&verse=2 |
+| Exodus 11:5 | Retained; source checked | https://classic.net.bible.org/verse.php?book=exo&chapter=11&verse=5 |
+| Exodus 12:3 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=exo+12%3A3-6 |
+| Exodus 13:9 | Retained; source checked | https://www.sefaria.org/Exodus.13.1?lang2=en&with=Halakhah ; https://www.chabad.org/torah-texts/925417/Mishneh-Torah-Rambam/Sefer-Ahavah/Tefillin-Mezuzah-and-Sefer-Torah/Tefillin-Mezuzah-and-Sefer-Torah-Chapter-1 |
+| Exodus 14:24 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Exo&chapter=14&tab=commentaries&theme=false&verse=24 |
+| Exodus 15:20 | Rewritten | https://bibleinterp.arizona.edu/articles/Music ; https://www.posenlibrary.com/entry/woman-playing-frame-drum ; https://www.journals.uchicago.edu/doi/10.2307/3210328 |
+| Exodus 15:27 | Retained; source checked | https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Elim |
+| Exodus 16:36 | Rewritten | https://www.biblegateway.com/passage/?search=Exodus+16%3A36&version=NET |
+| Exodus 21:6 | Retained; source checked | https://bible.usccb.org/bible/exodus/21 ; https://bible.usccb.org/bible/deuteronomy/15 |
+| Exodus 21:29 | Retained; source checked | https://bible.usccb.org/bible/exodus/21 ; https://avalon.law.yale.edu/ancient/hamcode.asp ; https://ehammurabi.org/law/251.html |
+| Exodus 22:12 | Retained; source checked | https://bible.usccb.org/bible/exodus/22 |
+
+Resume: remaining Exodus ancient_culture rows.
