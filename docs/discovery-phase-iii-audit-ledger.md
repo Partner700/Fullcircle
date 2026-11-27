@@ -781,3 +781,23 @@ Resume: Hebrews through Revelation original_language.
 | Revelation 9:11 | Rewritten | https://biblehub.com/text/revelation/9-11.htm |
 
 Resume: audit highest-risk scholarly_debate entries, then ancient_culture and remaining categories; revisit prior caveats. Finish licensing/rendering and tests.
+
+## Batch 40 — Scholarly debate, part 1
+
+11 disputed readings independently source-reviewed, rewritten and re-queried. 11/110 reviewed in this category; 1 Chronicles 2:15 source request failed and remains pending.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| 1 Chronicles 18:17 | Rewritten | https://classic.net.bible.org/verse.php?book=2Sa&chapter=8&tab=commentaries&theme=false&verse=18 |
+| 1 Chronicles 20:5 | Rewritten | https://classic.net.bible.org/verse.php?book=2Sa&chapter=21&theme=false&verse=19 |
+| 1 Corinthians 7:21 | Rewritten | https://classic.net.bible.org/verse.php/verse.php?book=1Co&chapter=7&verse=21 |
+| 1 John 5:7 | Rewritten | https://digitalcommons.andrews.edu/auss/vol56/iss1/6/ ; https://classic.net.bible.org/passage.php/o/w/passage.php?passage=1Jo+5%3A7-10 |
+| 1 Kings 19:12 | Rewritten | https://classic.net.bible.org/verse.php?book=1Ki&chapter=19&theme=false&verse=12 |
+| 1 Kings 6:1 | Rewritten | https://biblearchaeology.org/research-articles/1-kings-6-1-and-the-date-of-the-exodus-from-the-masoretic-and-septuagint-textual-traditions/ |
+| 1 Peter 5:13 | Rewritten | https://classic.net.bible.org/verse.php?book=1Pe&chapter=5&verse=13 |
+| 1 Samuel 1:24 | Rewritten | https://www.sefaria.org/I_Samuel.1.24?with=Notes+and+Corrections+on+Midrash+Aggadah ; https://www.biblegateway.com/passage/?search=1+Samuel+1%3A24-28%2C1+Samuel+1%3A24-26&version=ESV |
+| 1 Samuel 13:1 | Rewritten | https://classic.net.bible.org/passage.php?passage=1sa+13%3A1%2C2 |
+| 1 Samuel 14:18 | Rewritten | https://classic.net.bible.org/verse.php?book=1Sa&chapter=14&tab=commentaries&theme=wiki&verse=18 ; https://bible.sabda.org/bible.php?book=9&chapter=14&tab=text |
+| 1 Samuel 19:13 | Rewritten | https://classic.net.bible.org/passage.php?passage=1sa+19%3A13%2C16 |
+
+Resume: remaining scholarly_debate rows not yet logged; then other categories and independent corroboration caveats, semantic duplicates, images, tests and live rendering.
