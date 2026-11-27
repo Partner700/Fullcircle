@@ -434,3 +434,20 @@ Resume: Proverbs original_language, then remaining books. Finish any earlier fla
 | Proverbs 31:10 | Rewritten | https://biblehub.com/text/proverbs/31-10.htm |
 
 Resume: Ecclesiastes original_language, then Song of Solomon and prophetic books.
+
+## Batch 27 — Ecclesiastes and Song of Solomon lexical review
+
+8 existing entries rewritten and re-queried. Recorded lexical reviews: 311/533. Earlier corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Ecclesiastes 1:1 | Rewritten | https://bible.usccb.org/bible/ecclesiastes/0 |
+| Ecclesiastes 1:2 | Rewritten | https://classic.net.bible.org/verse.php?book=Ecc&chapter=1&verse=2 |
+| Ecclesiastes 2:5 | Rewritten | https://biblehub.com/hebrew/6508.htm |
+| Ecclesiastes 6:7 | Rewritten | https://biblehub.com/text/ecclesiastes/6-7.htm |
+| Ecclesiastes 8:11 | Rewritten | https://biblehub.com/hebrew/6599.htm |
+| Song of Solomon 1:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Sos&chapter=1&verse=1 |
+| Song of Solomon 4:13 | Rewritten | https://biblehub.com/text/songs/4-13.htm |
+| Song of Solomon 8:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Sos&chapter=8&theme=false&verse=6 |
+
+Resume: Isaiah original_language.
