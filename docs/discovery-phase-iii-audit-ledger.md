@@ -2136,3 +2136,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 Corinthians 3:6 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+3%3A6-9&version=NET |
 | 1 Corinthians 6:7 | Revised | https://www.biblegateway.com/passage/?search=1+Corinthians+6%3A1-8&version=NET |
 | 1 Corinthians 7:25 | Retained | https://classic.net.bible.org/verse.php?book=1Co&chapter=7&theme=false&verse=25 |
+
+
+## Batch 75 — Scripture detail: Kings, Samuel, epistles and 2 Chronicles
+
+15 further rows received biblical-text first-pass review, source-note updates and separate readback. One fact clarified compulsory labor and the three rotating shifts. No claim of independent historical corroboration or completed illustration review.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Kings 13:18 | Retained | https://classic.net.bible.org/bible.php?book=1Ki&chapter=13 |
+| 1 Kings 22:8 | Retained | https://classic.net.bible.org/bible.php?book=1Ki&chapter=22 |
+| 1 Kings 4:33 | Retained | https://classic.net.bible.org/bible.php?book=1Ki&chapter=4 |
+| 1 Kings 5:14 | Revised | https://classic.net.bible.org/bible.php?book=1Ki&chapter=5 |
+| 1 Kings 7:23 | Retained | https://classic.net.bible.org/bible.php?book=1Ki&chapter=7 |
+| 1 Kings 8:27 | Retained | https://classic.net.bible.org/bible.php?book=1Ki&chapter=8 |
+| 1 Peter 4:16 | Retained | https://lemma.gebible.app/v/1-peter/4/16 |
+| 1 Samuel 30:24 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+30%3A21-25&version=NIV%3BESV%3BNASB%3BCEB%3BCEV |
+| 1 Samuel 8:15 | Retained | https://classic.net.bible.org/passage.php?passage=1Sa+8%3A11-18 |
+| 1 Thessalonians 1:1 | Retained | https://www.biblegateway.com/passage/?search=1+Thessalonians+1%3A1&version=NET%3BNIV |
+| 1 Thessalonians 3:2 | Retained | https://classic.net.bible.org/bible.php?book=1Th&chapter=3 |
+| 1 Timothy 3:15 | Retained | https://bibleontology.org/p/1Tim.3.15 |
+| 1 Timothy 5:9 | Retained | https://classic.net.bible.org/verse.php?book=1Ti&chapter=5&verse=9 |
+| 2 Chronicles 11:13 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=11 |
+| 2 Chronicles 12:15 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=12 |
