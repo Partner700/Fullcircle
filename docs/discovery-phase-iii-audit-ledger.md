@@ -647,3 +647,29 @@ Resume: John original_language.
 | John 9:7 | Rewritten | https://biblehub.com/text/john/9-7.htm |
 
 Resume: Acts original_language.
+
+## Batch 35 — Acts and Romans lexical review
+
+17 entries rewritten and re-queried. Recorded lexical reviews 461/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Acts 10:34 | Rewritten | https://biblehub.com/text/acts/10-34.htm |
+| Acts 11:26 | Rewritten | https://biblehub.com/text/acts/11-26.htm |
+| Acts 12:25 | Rewritten | https://biblehub.com/text/acts/12-25.htm |
+| Acts 14:23 | Rewritten | https://biblehub.com/text/acts/14-23.htm |
+| Acts 20:28 | Rewritten | https://biblehub.com/text/acts/20-28.htm |
+| Acts 28:30 | Rewritten | https://biblehub.com/text/acts/28-31.htm |
+| Acts 9:17 | Rewritten | https://biblehub.com/text/acts/9-17.htm ; https://biblehub.com/text/acts/13-9.htm |
+| Romans 1:11 | Rewritten | https://biblehub.com/text/romans/1-11.htm |
+| Romans 12:1 | Rewritten | https://biblehub.com/text/romans/12-1.htm |
+| Romans 14:4 | Rewritten | https://biblehub.com/text/romans/14-4.htm |
+| Romans 2:15 | Rewritten | https://biblehub.com/text/romans/2-15.htm |
+| Romans 3:25 | Rewritten | https://biblehub.com/text/romans/3-25.htm |
+| Romans 4:3 | Rewritten | https://biblehub.com/text/romans/4-3.htm |
+| Romans 5:14 | Rewritten | https://biblehub.com/text/romans/5-14.htm |
+| Romans 6:11 | Rewritten | https://biblehub.com/text/romans/6-11.htm |
+| Romans 6:23 | Rewritten | https://biblehub.com/text/romans/6-23.htm |
+| Romans 8:15 | Rewritten | https://biblehub.com/text/romans/8-15.htm |
+
+Resume: Corinthians original_language.
