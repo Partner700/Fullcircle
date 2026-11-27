@@ -2182,3 +2182,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 2 Chronicles 34:3 | Revised | https://classic.net.bible.org/bible.php?book=2Ch&chapter=34 |
 | 2 Chronicles 5:13 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=5 |
 | 2 Chronicles 6:32 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=6 |
+
+
+## Batch 77 — Scripture detail: 2 Chronicles, 2 Corinthians, 2 Kings
+
+15 further primary-text reviews; one correction distinguishes Joash's initial concealment from his six-year temple refuge and differentiates parallel discoveries. Source notes independently read back; the Hilkiah entry includes scholarly discussion. First-pass review does not certify every secondary cross-reference, historical corroboration or illustration rights.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 2 Chronicles 7:10 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+7%3A8-10&version=CSB%3BNIV |
+| 2 Corinthians 5:1 | Retained | https://bible.usccb.org/bible/2corinthians/5 |
+| 2 Corinthians 7:5 | Retained | https://bible.usccb.org/bible/2corinthians/7 |
+| 2 Corinthians 8:20 | Retained | https://bible.usccb.org/bible/2corinthians/8 |
+| 2 Corinthians 9:5 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+9&version=NKJV%3BNET%3BNIV%3BKJV |
+| 2 Kings 10:30 | Retained | https://www.biblegateway.com/passage/?search=2+kings+10%3A30-31%2C+15%3A10-12&version=NIV |
+| 2 Kings 11:2 | Revised | https://www.biblegateway.com/passage/?search=2+Kings+11%3A2-3&version=NIV |
+| 2 Kings 12:15 | Retained | https://classic.net.bible.org/verse.php?book=2Ki&chapter=12&theme=false&verse=15 |
+| 2 Kings 13:21 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+13%3A20-21&version=NIV |
+| 2 Kings 14:25 | Retained | https://bible.usccb.org/bible/2kings/14 |
+| 2 Kings 19:14 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+19%3A14-19&version=NIV |
+| 2 Kings 2:11 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+2%3A11&version=NIV%3BKJV |
+| 2 Kings 21:16 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+21%3A16&version=NIV |
+| 2 Kings 22:8 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+22%3A3-20&version=NABRE ; https://journals.sagepub.com/doi/10.1177/0309089205052685 |
+| 2 Kings 6:17 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+6%3A17-23&version=NIV |
