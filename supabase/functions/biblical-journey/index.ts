@@ -20,7 +20,7 @@ import {
   type JourneyQuestion,
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
-import { JOURNEY_MACHINE_ID } from '../_shared/biblicalJourney.ts';
+import { recoverJourneyBoardPoints, JOURNEY_MACHINE_ID } from '../_shared/biblicalJourney.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim() || '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim() || '';
@@ -28,7 +28,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '215',
+  'X-Full-Circle-Journey-Release': '216',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -347,12 +347,14 @@ Deno.serve(async (request) => {
     const useBoomerang = action === 'SHIELD' && decision === 'reflect';
     const shieldOwners = body.shieldDecisionV1 === true && ['ANSWER', 'EXPIRE', 'CHOOSE', 'BOT', 'RELIC', 'SHIELD'].includes(action)
       ? await arenaShieldOwners(rest, activePlayers.map((player) => player.user_id), useShield ? actorId : undefined) : undefined;
-    const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : undefined;
+    const spend = action === 'UNDO' ? ARENA_UNDO : action === 'STANDSTILL' ? ARENA_STANDSTILL : action === 'RECOVER_POINTS' ? 'the-ninety-nine' : undefined;
     let next: JourneyRuntime;
     if (action === 'FORFEIT') {
       next = await forfeitJourney(original, actorId, approvedQuestion, secureRandom);
     } else if (action === 'UNDO') {
       next = await undoJourneyMove(previous, actorId, approvedQuestion, secureRandom);
+    } else if (action === 'RECOVER_POINTS') {
+      next = { ...structuredClone(previous), game: recoverJourneyBoardPoints(previous.game, actorId) };
     } else if (action === 'STANDSTILL') {
       next = pauseJourneyMatch(previous, actorId);
     } else if (action === 'SHIELD') {

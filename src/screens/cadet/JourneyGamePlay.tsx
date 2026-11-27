@@ -216,7 +216,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
     return () => { active = false; };
   }, [guestKey, roomId]);
 
-  const send = useCallback(async (action: 'FORFEIT' | 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL', payload: Record<string, unknown> = {}) => {
+  const send = useCallback(async (action: 'FORFEIT' | 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL' | 'RECOVER_POINTS', payload: Record<string, unknown> = {}) => {
     if (!state || spectator || sending) return false;
     const version = versionRef.current ?? state.game.version;
     const signature = JSON.stringify({ version, action, payload });
@@ -414,6 +414,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
       boardRelics={[
         { slug: ARENA_UNDO, usable: Boolean(undoAvailable && !sending && pauseRemaining === 0 && !state.game.shieldOffer), use: () => send('UNDO') },
         { slug: ARENA_STANDSTILL, usable: standstillAvailable && !sending && (!asking || secondsLeft > 0), use: () => send('STANDSTILL') },
+        { slug: 'the-ninety-nine', usable: Boolean(!sending && pauseRemaining === 0 && !state.game.shieldOffer && state.game.status === 'playing' && (state.game.players.find(player => player.id === userId)?.recoverableBoardPoints ?? 0) > 0), use: () => send('RECOVER_POINTS') },
         { slug: 'shield-of-faith', usable: false, use: async () => false },
       ]} />}
     {state.game.shieldOffer && <ArenaShieldDecision key={state.game.version} offer={state.game.shieldOffer}

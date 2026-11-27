@@ -53,6 +53,7 @@ export type JourneyPlayer = {
   correctAnswers: number;
   questionFigs?: number;
   score?: number;
+  recoverableBoardPoints?: number;
   completedLaps?: number;
 };
 
@@ -299,6 +300,7 @@ function deductBackwardSteps(game: JourneyGame, player: JourneyPlayer, previous:
   if (!steps) return;
   const oldScore = journeyScore(player);
   player.score = Math.max(0, oldScore - steps);
+  player.recoverableBoardPoints = (player.recoverableBoardPoints ?? 0) + oldScore - player.score;
   record(game, player, source, 'points-lost', player.location, 'none', 'applied', String(oldScore - player.score));
 }
 
@@ -679,4 +681,18 @@ export function resolveJourneyShield(original: JourneyGame, actorId: string, dec
   if (!game.pendingAction && !game.shieldOffer) nextTurn(game);
   game.version += 1;
   return game;
+}
+
+export function recoverJourneyBoardPoints(original: JourneyGame, actorId: string): JourneyGame {
+  const next = structuredClone(original);
+  const player = next.players.find(p => p.id === actorId);
+  if (next.status !== 'playing' || next.shieldOffer || !player || player.forfeitedPoints !== undefined || actorId === JOURNEY_MACHINE_ID || !Number.isSafeInteger(player.recoverableBoardPoints) || (player.recoverableBoardPoints ?? 0) <= 0) {
+    throw new Error('The Ninety-Nine relic requires recoverable board points in a live match.');
+  }
+  const recovered = player.recoverableBoardPoints!;
+  player.score = journeyScore(player) + recovered;
+  player.recoverableBoardPoints = 0;
+  record(next, player, 'the-ninety-nine', 'points-restored', player.location, 'none', 'applied', String(recovered));
+  next.version++;
+  return next;
 }

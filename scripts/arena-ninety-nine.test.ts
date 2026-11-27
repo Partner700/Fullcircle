@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import { createJourneyGame, resolveJourneyRoll, recoverJourneyBoardPoints } from '../supabase/functions/_shared/biblicalJourney.ts';
+const game = createJourneyGame(['a','b']);
+game.players[0].location = { route:'main', space:15 };
+game.players[0].score = 10;
+const lost = resolveJourneyRoll(game,'a',1);
+assert.equal(lost.players[0].score,4);
+assert.equal(lost.players[0].recoverableBoardPoints,7);
+const restored = recoverJourneyBoardPoints(lost,'a');
+assert.equal(restored.players[0].score,11);
+assert.equal(restored.players[0].recoverableBoardPoints,0);
+assert.equal(restored.players[1].score,lost.players[1].score);
+assert.equal(restored.pointsRemaining,lost.pointsRemaining);
+assert.equal(restored.version,lost.version+1);
+assert.throws(()=>recoverJourneyBoardPoints(restored,'a'));
+assert.throws(()=>recoverJourneyBoardPoints(lost,'b'));
+assert.throws(()=>recoverJourneyBoardPoints({...lost,status:'finished'},'a'));
+console.log('Ninety-Nine recovery tests passed');
