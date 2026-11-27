@@ -857,3 +857,16 @@ Resume: remaining scholarly_debate rows not yet logged; then other categories an
 | Job 13:15 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=13&tab=commentaries&theme=wiki&verse=15 |
 | Job 23:12 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=23&theme=false&verse=12 |
 Resume: all remaining scholarly_debate entries without the Phase III scholarly debate source marker.
+
+## Batch 43 — Scholarly debate, part 4
+
+Six entries rewritten against retrieved verse notes and re-queried. Cumulative 58/110. Remaining unmarked entries still require source checks.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Joel 1:4 | Rewritten | https://classic.net.bible.org/passage.php?mode=print&passage=Joe+1%3A4 |
+| Jonah 4:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Jon&chapter=4&verse=6 |
+| Judges 11:40 | Rewritten | https://classic.net.bible.org/verse.php?book=Jdg&chapter=11&tab=commentaries&theme=false&verse=40 |
+| Judges 18:30 | Rewritten | https://classic.net.bible.org/verse.php?book=Jdg&chapter=18&verse=30 |
+| Luke 10:1 | Rewritten | https://www.biblegateway.com/passage/?search=Luke.10.1&version=NET |
+| Luke 23:34 | Rewritten | https://classic.net.bible.org/verse.php?book=Luk&chapter=23&tab=commentaries&verse=34 |
