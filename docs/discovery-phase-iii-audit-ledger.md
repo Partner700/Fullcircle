@@ -979,3 +979,22 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Genesis 38:8 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=38&tab=commentaries&verse=8 ; https://classic.net.bible.org/passage.php?passage=Deu+25%3A5%2C6 |
 
 Resume: remaining Genesis ancient_culture entries.
+
+## Batch 49 — Remaining Genesis ancient culture
+
+10 entries source-checked and re-queried; three rewritten with specific Met museum objects, seven retained. Cumulative ancient culture first pass 30/850; Genesis 30/30. Further corroboration of broad historical claims and image licensing/rendering remain pending.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Genesis 39:4 | Rewritten with museum evidence | https://classic.net.bible.org/verse.php?book=Gen&chapter=39&tab=commentaries&verse=4 ; https://www.metmuseum.org/art/collection/search/544320?locale=en |
+| Genesis 40:1 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=40&theme=false&verse=1 |
+| Genesis 41:45 | Retained; source checked | https://www.biblegateway.com/passage/?search=Genesis+41%3A45&version=NET |
+| Genesis 42:23 | Retained; source checked | https://classic.net.bible.org/verse.php?book=gen&chapter=42&verse=23 |
+| Genesis 43:34 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=43&verse=34 ; https://bible.usccb.org/bible/1samuel/9 |
+| Genesis 44:5 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+44%3A5%2C15 |
+| Genesis 46:4 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+46%3A2-4 |
+| Genesis 47:6 | Rewritten with museum evidence | https://classic.net.bible.org/verse.php?book=gen&chapter=47&verse=6 ; https://www.metmuseum.org/art/collection/search/543902 |
+| Genesis 48:5 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+48%3A5 |
+| Genesis 50:2 | Rewritten with museum evidence | https://classic.net.bible.org/passage.php/xml/passage.php?passage=Gen+50%3A2%2C3 ; https://www.metmuseum.org/art/collection/search/587568 |
+
+Resume: Exodus ancient_culture.
