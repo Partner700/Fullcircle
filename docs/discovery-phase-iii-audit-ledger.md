@@ -52,3 +52,26 @@ Continue Genesis original-language entries excluding the 20 Genesis references l
 | Genesis 30:24 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Gen+29%3A31--30%3A24&theme=false |
 | Genesis 31:47 | Retained; source specified | https://www.biblegateway.com/passage/?search=Genesis+31%3A47-49&version=NET |
 | Genesis 31:49 | Rewritten | https://www.biblegateway.com/passage/?search=Genesis+31%3A47-49&version=NET |
+
+## Batch 13 — Remaining Genesis lexical audit
+
+15 updates confirmed by independent database re-query. Genesis original-language pass: 51 of 51 recorded reviews.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Genesis 16:13 | Rewritten for precision | https://classic.net.bible.org/verse.php?book=Gen&chapter=16&tab=commentaries&verse=13 |
+| Genesis 26:3 | Retained; source specified | https://www.studylight.org/lexicons/eng/hebrew/1481.html |
+| Genesis 32:28 | Retained; source specified | https://www.bible.com/bible/107/GEN.32.NET |
+| Genesis 32:30 | Retained; source specified | https://www.biblegateway.com/passage/?search=Genesis+32%3A30-32&version=NET |
+| Genesis 33:20 | Rewritten for precision | https://tips.translation.bible/story/translation-commentary-on-genesis-3320/ |
+| Genesis 35:18 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Gen&chapter=35&theme=false&verse=18 |
+| Genesis 37:3 | Rewritten for precision | https://www.bible.com/bible/107/GEN.37.NET |
+| Genesis 40:2 | Retained; source specified | https://www.bible.com/bible/107/GEN.40.NET |
+| Genesis 42:4 | Rewritten for precision | https://www.blueletterbible.org/lexicon/h611/wlc/wlc/0-1 |
+| Genesis 43:3 | Retained; source specified | https://www.bible.com/bible/107/GEN.43.NET |
+| Genesis 45:8 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Gen+45%3A8&theme=wiki |
+| Genesis 45:24 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Gen&chapter=45&tab=commentaries&theme=wiki&verse=24 |
+| Genesis 48:16 | Retained; source specified | https://biblehub.com/strongs/new/hebrew/1350.htm |
+| Genesis 49:4 | Retained; source specified | https://www.bible.com/bible/107/GEN.49.NET |
+| Genesis 50:20 | Retained; source specified | https://biblehub.com/text/genesis/50-20.htm |
+Resume: remaining Exodus lexical records, then other books and categories.
