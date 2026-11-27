@@ -912,3 +912,24 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Proverbs 25:11 | Rewritten | https://classic.net.bible.org/passage.php?passage=Pro+25%3A11%2C12 |
 | Proverbs 30:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Pro&chapter=30&theme=wiki&verse=1 |
 | Proverbs 8:22 | Rewritten | https://classic.net.bible.org/passage.php?passage=Pro+8%3A22%2C23 |
+
+## Batch 46 — Scholarly debate, part 7
+
+14 entries revised and re-queried. Cumulative 100/110. Source comparison supports the editorial claims; disputed reconstructions remain qualified.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Nehemiah 8:8 | Rewritten | https://classic.net.bible.org/passage.php?passage=Neh+8%3A8 |
+| Psalms 100:3 | Rewritten | https://classic.net.bible.org/verse.php?book=psa&chapter=100&verse=3 |
+| Psalms 102:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=102&lang=de&verse=6 |
+| Psalms 108:4 | Rewritten | https://biblehub.com/text/psalms/108-4.htm ; https://www.biblehub.com/text/psalms/57-10.htm |
+| Psalms 138:2 | Rewritten | https://www.biblegateway.com/passage/?search=Psalm+138%3A2&version=NET |
+| Psalms 17:15 | Rewritten | https://www.biblegateway.com/passage/?search=Ps.17.15&version=NET |
+| Psalms 22:16 | Rewritten | https://www.biblegateway.com/passage/?search=Psalm+22%3A16&version=NET |
+| Psalms 30:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=30&tab=commentaries&verse=1 |
+| Psalms 40:6 | Rewritten | https://www.biblegateway.com/passage/?search=Psalm+40%3A6%2CHebrews+10%3A5-7&version=NIV |
+| Psalms 48:2 | Rewritten | https://classic.net.bible.org/passage.php?passage=Psa+48%3A2 |
+| Psalms 58:1 | Rewritten | https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=58&tab=commentaries&verse=1 |
+| Psalms 8:5 | Rewritten | https://www.biblegateway.com/passage/?search=Psalm+8&version=NIV%3BNET |
+| Psalms 82:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=82&tab=commentaries&verse=1 |
+| Psalms 97:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=97&theme=wiki&verse=11 |
