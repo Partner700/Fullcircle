@@ -577,3 +577,23 @@ Resume: minor prophets original_language.
 | Zephaniah 3:9 | Rewritten | https://biblehub.com/text/zephaniah/3-9.htm |
 
 Resume: Matthew original_language.
+
+## Batch 32 — Matthew lexical review
+
+11 entries rewritten and re-queried. Recorded lexical reviews 412/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Matthew 10:2 | Rewritten | https://biblehub.com/text/matthew/10-2.htm |
+| Matthew 13:52 | Rewritten | https://biblehub.com/text/matthew/13-52.htm |
+| Matthew 16:18 | Rewritten | https://biblehub.com/text/matthew/16-18.htm |
+| Matthew 17:4 | Rewritten | https://biblehub.com/text/matthew/17-4.htm |
+| Matthew 20:25 | Rewritten | https://biblehub.com/text/matthew/20-25.htm ; https://biblehub.com/text/matthew/20-26.htm ; https://biblehub.com/text/matthew/20-27.htm |
+| Matthew 25:15 | Rewritten | https://biblehub.com/text/matthew/25-15.htm |
+| Matthew 26:63 | Rewritten | https://biblehub.com/text/matthew/26-63.htm |
+| Matthew 28:19 | Rewritten | https://biblehub.com/text/matthew/28-19.htm |
+| Matthew 6:12 | Rewritten | https://biblehub.com/text/matthew/6-12.htm |
+| Matthew 6:24 | Rewritten | https://biblehub.com/text/matthew/6-24.htm |
+| Matthew 8:8 | Rewritten | https://biblehub.com/text/matthew/8-8.htm |
+
+Resume: Mark original_language.
