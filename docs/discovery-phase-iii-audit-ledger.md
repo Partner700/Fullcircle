@@ -2734,3 +2734,14 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 2 Peter 2:22 | Revised | https://bible.usccb.org/bible/2peter/2; Phase III: Verse and NABRE note retrieved; Proverbs primary text pending. |
 | 2 Peter 3:8 | Retained | https://bible.usccb.org/bible/2peter/3; Phase III: Verses 8–9 retrieved; Psalm primary text pending. |
 | 2 Samuel 1:18 | Retained | https://bible.usccb.org/bible/2samuel/1; Phase III: Verses 17–18 retrieved; Joshua and manuscript history pending. |
+
+
+## Batch 98 — Partial source verification checkpoint
+
+Three comparative published excerpts retrieved via alternative search results after page-access failures. Three source notes updated, one substantive rewrite. Database readback performed. Remaining 17 entries not certified; do not advance full-batch completion count. Full primary passages and independent scholarly corroboration still pending where applicable.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| 2 Samuel 20:1 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+20%3A1%2C1+Kings+12%3A16&version=NIV |
+| 2 Samuel 24:24 | Revised | https://www.biblegateway.com/passage/?search=1+Chronicles+21%3A25%2C2+Samuel+24%3A24-25&version=NIV |
+| Acts 15:16 | Retained | https://www.biblegateway.com/passage/?search=Acts+15%3A15-18%2CAmos+9%3A11-12&version=NIV%3BNET%3BHCSB%3BNKJV |
