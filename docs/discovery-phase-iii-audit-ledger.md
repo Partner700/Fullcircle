@@ -2578,3 +2578,28 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Psalms 79:8 | Retained | https://www.biblegateway.com/passage/?search=Psalm+79%3A8&version=NET |
 | Psalms 80:3 | Revised | https://www.biblegateway.com/passage/?search=Psalm+80&version=KJV%3BNET%3BNKJV%3BNIV%3BESV |
 | Psalms 88:1 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=88&theme=wiki&verse=1 |
+
+
+## Batch 92 — Scripture detail: Psalms through Zephaniah
+
+17 first-pass editorial reviews, seven rewrites. Published chapter or verse excerpts consulted for every entry. Psalm 9 duplicates differentiated; Ruth's ephah estimate separated from a fixed mass; Zephaniah 3:17 translation variants clarified. Some full-page fetches failed (403/cache miss); search excerpts and alternative NET sources used. Cross-references and secondary claims remain subject to independent corroboration; source citation is not final certification. All 17 records read back against expected facts and notes. Reconciliation: 353 of 353 current scripture_detail references matched to Batch 73–92 ledger rows. No unmatched references.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Psalms 88:18 | Retained | https://classic.net.bible.org/verse.php?book=Psa&chapter=88&theme=false&verse=18 |
+| Psalms 89:52 | Revised | https://classic.net.bible.org/verse.php?book=psa&chapter=89&verse=52 |
+| Psalms 9:1 | Revised | https://bible.usccb.org/bible/psalms/9 |
+| Psalms 90:1 | Retained | https://bible.usccb.org/bible/psalms/90 |
+| Psalms 92:1 | Retained | https://bible.usccb.org/bible/psalms/92 |
+| Revelation 17:16 | Retained | https://bible.usccb.org/bible/revelation/17 |
+| Revelation 7:5 | Revised | https://bible.usccb.org/bible/revelation/7 ; https://bible.usccb.org/bible/joshua/14 |
+| Revelation 9:4 | Retained | https://bible.usccb.org/bible/revelation/9 |
+| Romans 15:24 | Retained | https://classic.net.bible.org/passage.php?passage=Rom+15%3A24-28 |
+| Romans 16:22 | Retained | https://classic.net.bible.org/verse.php?book=Rom&chapter=16&theme=false&verse=22 |
+| Romans 7:2 | Retained | https://classic.net.bible.org/passage.php?passage=rom+7%3A1-6 |
+| Ruth 2:17 | Revised | https://classic.net.bible.org/verse.php?book=Rut&chapter=2&verse=17 ; https://classic.net.bible.org/bible.php/b/d/verse.php?book=Rut&chapter=2&verse=22 |
+| Titus 1:5 | Retained | https://classic.net.bible.org/verse.php?book=Tit&chapter=1&theme=false&verse=5 |
+| Zechariah 4:10 | Revised | https://classic.net.bible.org/verse.php/verse.php?book=Zec&chapter=4&verse=10 |
+| Zechariah 8:19 | Revised | https://classic.net.bible.org/verse.php?book=Zec&chapter=8&verse=19 ; https://www.biblegateway.com/passage/?search=Zechariah+8%3A19&version=NABRE |
+| Zephaniah 1:1 | Retained | https://classic.net.bible.org/verse.php?book=Zep&chapter=1&verse=1 |
+| Zephaniah 3:17 | Revised | https://classic.net.bible.org/verse.php?book=zeph&chapter=3&verse=17 |
