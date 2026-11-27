@@ -2228,3 +2228,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 2 Thessalonians 2:2 | Revised | https://bible.usccb.org/bible/2thessalonians/2 ; https://classic.net.bible.org/verse.php?book=2th&chapter=3&verse=17 |
 | 2 Timothy 2:2 | Retained | https://bible.usccb.org/bible/2timothy/2 |
 | 2 Timothy 3:8 | Retained | https://bible.usccb.org/bible/2timothy/3 ; https://search.biblegateway.com/resources/encyclopedia-of-the-bible/Jannes-Jambres |
+
+
+## Batch 79 — Scripture detail: 3 John, Acts, Amos and Daniel
+
+15 first-pass reviews using retrieved USCCB chapter pages and notes. Three fact rewrites clarify famine context (secondary note, original Josephus text still to corroborate), official letter transmission, and the three migrations in Amos. Not every cross-reference independently retrieved; no illustration or production certification. All 15 rows re-read from the live database.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 3 John 1:7 | Retained | https://bible.usccb.org/bible/3john/1 |
+| Acts 11:29 | Revised | https://bible.usccb.org/bible/acts/11 |
+| Acts 15:23 | Revised | https://bible.usccb.org/bible/acts/15 |
+| Acts 19:19 | Retained | https://bible.usccb.org/bible/acts/19 |
+| Acts 20:9 | Retained | https://bible.usccb.org/bible/acts/20 |
+| Acts 22:3 | Retained | https://bible.usccb.org/bible/acts/22 |
+| Acts 25:26 | Retained | https://bible.usccb.org/bible/acts/25 |
+| Acts 4:36 | Retained | https://bible.usccb.org/bible/acts/4 |
+| Acts 5:34 | Retained | https://bible.usccb.org/bible/acts/5 |
+| Acts 5:4 | Retained | https://bible.usccb.org/bible/acts/5 |
+| Acts 6:3 | Retained | https://bible.usccb.org/bible/acts/6 |
+| Amos 4:4 | Retained | https://bible.usccb.org/bible/amos/4 |
+| Amos 6:5 | Retained | https://bible.usccb.org/bible/amos/6 |
+| Amos 9:7 | Revised | https://bible.usccb.org/bible/amos/9 |
+| Daniel 10:13 | Retained | https://bible.usccb.org/bible/daniel/10 |
