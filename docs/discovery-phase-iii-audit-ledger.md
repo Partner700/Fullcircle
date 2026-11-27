@@ -2382,3 +2382,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Job 12:2 | Retained | https://www.biblegateway.com/passage/?search=Job+12%3A1-10&version=NIV; retrieval incomplete |
 | Job 12:7 | Retained | https://www.biblegateway.com/passage/?search=Job+12%3A1-10&version=NIV; retrieval incomplete |
 | Job 17:14 | Retained | https://classic.net.bible.org/verse.php?book=Job&chapter=17&theme=false&verse=14; primary text or excerpt consulted |
+
+
+## Batch 85 — Scripture detail: Job through Joshua 20
+
+20 first-pass editorial reviews; five substantive rewrites. Primary text or relevant excerpt retrieved for 15 rows, five explicitly flagged for follow-up (two unavailable, one commentary only, two partial excerpts). Cross-references and secondary claims not comprehensively corroborated. All 20 live rows independently read back; source-note persistence is not external source certification. No illustration or production certification.
+
+| Reference | Verdict | Source / retrieval status |
+|---|---|---|
+| Job 2:6 | Retained | https://bible.usccb.org/bible/job/2; primary text or relevant excerpt consulted |
+| Job 20:4 | Retained | https://www.biblegateway.com/passage/?search=Job+20&version=NET%3BNIV; primary text or relevant excerpt consulted |
+| Job 21:7 | Retained | https://www.biblegateway.com/passage/?search=Job+21%3A7-13&version=NIV; primary text or relevant excerpt consulted |
+| Job 26:7 | Retained | https://www.bible.com/bible/compare/JOB.26.7; primary text or relevant excerpt consulted |
+| Job 3:11 | Revised | https://www.biblegateway.com/passage/?search=Job+3%3A1-11&version=NIV; primary text or relevant excerpt consulted |
+| Job 31:13 | Revised | https://www.biblegateway.com/passage/?search=Job+31%3A13-15&version=NIV%3BCSB%3BNASB1995; primary text or relevant excerpt consulted |
+| Job 34:19 | Retained | https://bible.usccb.org/bible/job/34; retrieval incomplete |
+| Job 35:6 | Retained | https://www.biblegateway.com/passage/?search=Job+35%3A6-8&version=NIV%3BNKJV; retrieval incomplete |
+| Job 36:27 | Retained | https://www.biblegateway.com/passage/?search=Job+36%3A27-28&version=NIV; primary text or relevant excerpt consulted |
+| Job 37:10 | Retained | https://www.biblegateway.com/passage/?search=Job+37%3A10&version=NIV; primary text or relevant excerpt consulted |
+| Job 4:7 | Retained | https://bible.sabda.org/passage.php?passage=Job+4--5&tab=text; commentary excerpt only |
+| Job 42:7 | Retained | https://www.biblegateway.com/passage/?search=job+42%3A7&version=NIV; primary text or relevant excerpt consulted |
+| Joel 2:28 | Retained | https://bible.usccb.org/bible/joel/3; primary text or relevant excerpt consulted |
+| John 21:11 | Revised | https://bible.usccb.org/bible/john/21; primary text or relevant excerpt consulted |
+| John 4:9 | Retained | https://www.biblegateway.com/passage/?search=John+4%3A9-22&version=NIV; primary text or relevant excerpt consulted |
+| Jonah 4:11 | Revised | https://bible.usccb.org/bible/jonah/4; primary text or relevant excerpt consulted |
+| Joshua 12:24 | Retained | https://www.biblegateway.com/passage/?search=Joshua+12%3A8-24&version=KJV%3BNIV; partial excerpt |
+| Joshua 14:10 | Retained | https://www.biblegateway.com/passage/?search=Joshua+14%3A7-14%3A10&version=NIV%3BESV; primary text or relevant excerpt consulted |
+| Joshua 17:3 | Retained | https://www.biblegateway.com/passage/?search=Joshua+17%3A3-6&version=NIV; partial excerpt |
+| Joshua 20:7 | Revised | https://classic.net.bible.org/passage.php/passage.php?passage=Jos+20%3A7-9; primary text or relevant excerpt consulted |
