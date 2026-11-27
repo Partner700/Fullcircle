@@ -2678,3 +2678,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 Samuel 21:1 | Retained | https://www.biblegateway.com/passage/?search=1+Sam+21%3A1%2CMark+2%3A26%2CNeh+11%3A32%2CIsa+10%3A32%2C1+Sam+16%3A4%2C1+Sam+14%3A3%2C1+Sam+22%3A9-19&version=NRSVUE%3BNIV; Comparative result retrieved; geographical identification not independently verified. |
 | 1 Samuel 22:20 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+22%3A20-1+Samuel+22%3A23%2C1+Samuel+23%3A6%2C1+Samuel+30%3A7%2C1+Kings+2%3A22%2C1+Kings+2%3A26%2C1+Kings+2%3A27%2CMark+2%3A6&version=NKJV; Comparative result explicitly identifies fulfilment; earlier oracle pending. |
 | 1 Samuel 24:14 | Pending source check | No new source; Comparative retrieval not established. |
+
+
+## Batch 96 — Textual connections: 1 Samuel through 2 Chronicles 36:21
+
+20 first-pass editorial reviews, 20 source-note updates, five substantive rewrites. Actual search excerpts and chapter-page retrieval completed for all 20, but many secondary passages remain uninspected; details below. Five rewritten entries use retrieved primary or reference material with caveats. One semantic overlap flagged. All 20 database records read back against expected values. No illustration or production certification.
+
+| Reference | Verdict | Retrieved sources / limitations |
+|---|---|---|
+| 1 Samuel 27:6 | Revised | https://www.biblegateway.com/resources/smiths-bible-names-dictionary/Ziklag; Smith's Bible Names Dictionary excerpt supports all three references; primary passages not individually retrieved. |
+| 1 Samuel 28:3 | Retained | https://www.biblegateway.com/passage/?search=Leviticus+19%3A31%2CLeviticus+20%3A27%2CDeuteronomy+18%3A11%2C1+Samuel+28%3A3%2C1+Samuel+28%3A7-9&version=ESV%3BNKJV%3BNIV%3BKJV; Comparative published result retrieved. |
+| 1 Samuel 29:5 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+18%3A7-11&version=NIV; First occurrence and cross-reference listing for later occurrences retrieved; later verses not individually inspected. |
+| 1 Samuel 31:12 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+11%3A1-1+Samuel+11%3A11%2C1+Samuel+31%3A11-1+Samuel+31%3A13%2C2+Samuel+2%3A4-2+Samuel+2%3A7%2C2+Samuel+21%3A11-2+Samuel+21%3A14&version=NABRE; Comparative publication retrieved; excerpt specifically confirms recovery and later account. |
+| 1 Thessalonians 1:3 | Retained | https://www.biblegateway.com/passage/?search=1+Thessalonians+1%3A3%2C1+Corinthians+13%3A13%2CGalatians+5%3A6%2CRevelation+2%3A19%2C2+Thessalonians+1%3A11%2CRomans+8%3A24-25%2C1+John+5%3A3%2C2+Thessalonians+1%3A3%2C2+Corinthians+8%3A7-9&version=NRSVUE; Comparative excerpt retrieved; overlaps existing 1 Corinthians 13:13 discovery, flag for corpus semantic review. |
+| 1 Thessalonians 2:9 | Retained | https://www.biblegateway.com/passage/?search=Acts+18%3A3%2C1+Thessalonians+2%3A9%2C1+Corinthians+4%3A12%2C2+Thessalonians+3%3A8-9%2C2+Corinthians+11%3A9%2C2+Corinthians+11%3A7%2C2+Corinthians+12%3A13%2C1+Corinthians+9%3A6-12%2CActs+20%3A34-35&version=NIV%3BESV%3BNASB; Paul's work and Acts trade result retrieved; Philippians 4:16 cross-reference listed but not separately retrieved. |
+| 1 Timothy 5:18 | Retained | https://www.biblegateway.com/passage/?search=1+Timothy+5%3A18%2CDeuteronomy+25%3A4%2CLuke+10%3A7&version=NIV; Comparative publication retrieved; precise literary dependence on Luke's written Gospel remains an interpretive question. |
+| 2 Chronicles 1:3 | Retained | https://bible.usccb.org/bible/2chronicles/1; Chapter retrieved; 1 Chronicles 16:39 not separately retrieved. |
+| 2 Chronicles 13:11 | Revised | https://www.biblegateway.com/passage/?search=2+Chronicles+13%3A11&version=NIV; Chronicles verse retrieved; full Torah comparison pending. |
+| 2 Chronicles 18:7 | Retained | https://bible.usccb.org/bible/2chronicles/18; Chapter retrieved; Kings parallel not separately retrieved. |
+| 2 Chronicles 23:18 | Retained | https://bible.usccb.org/bible/2chronicles/23; Chapter and 1 Chronicles 23:13 cross-reference retrieved; full comparison pending. |
+| 2 Chronicles 24:20 | Retained | https://bible.usccb.org/bible/2chronicles/24; Chronicles chapter retrieved; Zechariah 1:1 not separately retrieved. |
+| 2 Chronicles 24:6 | Retained | https://bible.usccb.org/bible/2chronicles/24; Chronicles chapter retrieved; Exodus contribution text not separately retrieved. |
+| 2 Chronicles 25:4 | Revised | https://bible.usccb.org/bible/2chronicles/25; Chronicles chapter retrieved; Deuteronomy text not separately retrieved. |
+| 2 Chronicles 29:30 | Retained | https://classic.net.bible.org/verse.php?book=2Ch&chapter=29&theme=false&verse=30; NET verse retrieved; psalm headings not individually checked. |
+| 2 Chronicles 3:1 | Retained | https://bible.usccb.org/bible/2chronicles/3; Chronicles chapter retrieved; Genesis and earlier Chronicles passages not separately retrieved. |
+| 2 Chronicles 30:2 | Revised | https://bible.usccb.org/bible/2chronicles/30; Chronicles chapter retrieved; Numbers passage not separately retrieved. |
+| 2 Chronicles 33:13 | Retained | https://bible.usccb.org/bible/2chronicles/33; Chronicles chapter and prayer notices retrieved; Kings and standalone prayer identification require further comparison. |
+| 2 Chronicles 35:15 | Revised | https://bible.usccb.org/bible/2chronicles/35; Chronicles 35:14–16 retrieved; 1 Chronicles 25–26 cross-reference pending. |
+| 2 Chronicles 36:21 | Retained | https://bible.usccb.org/bible/2chronicles/36; Chapter retrieved; Leviticus and Jeremiah passages not separately retrieved. |
