@@ -2205,3 +2205,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 2 Kings 21:16 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+21%3A16&version=NIV |
 | 2 Kings 22:8 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+22%3A3-20&version=NABRE ; https://journals.sagepub.com/doi/10.1177/0309089205052685 |
 | 2 Kings 6:17 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+6%3A17-23&version=NIV |
+
+
+## Batch 78 — Scripture detail: Samuel and New Testament epistles
+
+15 rows received first-pass textual review against retrieved biblical passages or search excerpts. Three substantive revisions concerning Jashar, royal chronology, and message authentication. Alternative accessible sources used after HTTP 403 errors. Not every secondary cross-reference or historical inference independently corroborated; no illustrations added. All 15 source notes and revised facts re-read from live database.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 2 Peter 3:16 | Retained | https://bible.usccb.org/bible/2peter/3 |
+| 2 Samuel 1:19 | Revised | https://www.biblegateway.com/passage/?search=2+Samuel+1%3A17-27&version=NET |
+| 2 Samuel 11:3 | Retained | https://classic.net.bible.org/passage.php?passage=2sa+11%3A3%3B23%3A34 |
+| 2 Samuel 15:19 | Retained | https://classic.net.bible.org/passage.php?passage=2sa+15%3A19-22 |
+| 2 Samuel 18:33 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+18%3A33-19%3A4&version=NIV |
+| 2 Samuel 23:2 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+23%3A1-2&version=NLT%3BNIV%3BNKJV |
+| 2 Samuel 3:1 | Retained | https://classic.net.bible.org/verse.php?book=2sa&chapter=2&verse=11 ; https://bible.usccb.org/bible/2samuel/5 |
+| 2 Samuel 4:4 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+4%3A4%3B+9&version=NIV ; https://www.biblegateway.com/passage/?search=2+Samuel+9&version=NET%3BCSB |
+| 2 Samuel 5:5 | Revised | https://bible.usccb.org/bible/2samuel/5 ; https://www.biblegateway.com/passage/?search=2+Samuel+2%3A1-4%2C2+Samuel+2%3A11%2C2+Samuel+5%3A5%2C1+Kings+2%3A11%2C1+Chronicles+3%3A4&version=NIV |
+| 2 Samuel 8:16 | Retained | https://bible.usccb.org/bible/2samuel/8 ; https://www.biblegateway.com/passage/?search=2Samuel+20%3A23-26&version=NIV |
+| 2 Samuel 9:10 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+9&version=NET%3BCSB |
+| 2 Thessalonians 1:4 | Retained | https://classic.net.bible.org/verse.php?book=2Th&chapter=1&theme=wiki&verse=4 |
+| 2 Thessalonians 2:2 | Revised | https://bible.usccb.org/bible/2thessalonians/2 ; https://classic.net.bible.org/verse.php?book=2th&chapter=3&verse=17 |
+| 2 Timothy 2:2 | Retained | https://bible.usccb.org/bible/2timothy/2 |
+| 2 Timothy 3:8 | Retained | https://bible.usccb.org/bible/2timothy/3 ; https://search.biblegateway.com/resources/encyclopedia-of-the-bible/Jannes-Jambres |
