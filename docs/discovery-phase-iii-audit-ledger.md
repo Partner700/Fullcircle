@@ -1684,3 +1684,71 @@ Resume: Isaiah ancient culture.
 | Isaiah 66:23 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+66&version=NET ; https://tips.translation.bible/story/translation-commentary-on-isaiah-6623/ |
 
 Resume: Jeremiah.
+
+## Batch 67 — Jeremiah and Lamentations ancient culture
+
+59 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 622/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Jeremiah 1:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+1&version=NET ; https://ccel.org/ccel/jfb/jfb/JFB24.htm |
+| Jeremiah 2:13 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+2&version=NET ; https://tips.translation.bible/story/translation-commentary-on-jeremiah-213/ |
+| Jeremiah 4:3 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+4&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/jeremiah/4/3 |
+| Jeremiah 5:10 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+5&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=5&tab=commentaries&theme=wiki&verse=10 |
+| Jeremiah 5:27 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+5&version=NET ; https://tips.translation.bible/story/translation-commentary-on-jeremiah-527/ |
+| Jeremiah 6:29 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+6&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=6&tab=commentaries&verse=29 |
+| Jeremiah 7:12 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+7&version=NET ; https://www.sbl-site.org/wp-content/uploads/2024/12/Gorgias_Pitkanen.pdf |
+| Jeremiah 8:7 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+8&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/jer.pdf |
+| Jeremiah 8:22 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+8&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=8&tab=commentaries&theme=wiki&verse=22 |
+| Jeremiah 9:17 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+9&version=NET ; https://wordandworld.luthersem.edu/wp-content/uploads/pdfs/22-4_Jeremiah/The%20Way%20of%20Weeping%3B%20Reading%20the%20Path%20of%20Grief%20in%20Jeremiah.pdf |
+| Jeremiah 10:3 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+10&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/jer.pdf |
+| Jeremiah 11:19 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+11&version=NET ; https://classic.net.bible.org/passage.php?passage=Jer+11%3A18%2C19 |
+| Jeremiah 12:5 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+12&version=NET ; https://calvin.edu/sites/default/files/migrated/centers-institutes-meeter-center-files-john-calvins-works-in-english-Commentary-20018---Jeremiah-Lamentations-Vol.-2.pdf |
+| Jeremiah 13:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+13&version=NET ; https://biblenavigator.org/commentary-notes/Jeremiah/13 |
+| Jeremiah 14:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+14&version=NET ; https://www.gospelstudies.org.uk/biblicalstudies/pdf/e-books/orelli_c-von/jeremiah_oreilli.pdf |
+| Jeremiah 15:16 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+15&version=NET ; https://mc.dlib.nyu.edu/files/books/brill_awdl000091/brill_awdl000091_lo.pdf |
+| Jeremiah 16:16 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+16&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-jeremiah-1616/ |
+| Jeremiah 17:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+17&version=NET ; https://ora.ox.ac.uk/objects/uuid%3A34b44f1b-fc00-4262-acdd-4d6a18cbc73b/files/d6d56zx24w |
+| Jeremiah 18:3 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+18&version=NET ; https://scielo.org.za/scielo.php?pid=S0259-94222020000400047&script=sci_arttext |
+| Jeremiah 19:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+19&version=NET ; https://search.biblegateway.com/passage/?search=Jer.19.1&version=NET |
+| Jeremiah 19:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+19&version=NET ; https://philsacra.ust.edu.ph/admin/downloadarticle?id=F38014E7FC875E56E7D13AA254D15B95 |
+| Jeremiah 20:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+20&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/jer.pdf |
+| Jeremiah 22:13 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+22&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/e-books/streane_a-w/jeremiah-lamentations_streane.pdf |
+| Jeremiah 22:24 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+22&version=NET ; https://icotb.org/wp-content/uploads/2024/12/Jeremiah-and-Lamentations-by-James-E.-Smith.pdf |
+| Jeremiah 24:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+24&version=NET ; https://icotb.org/wp-content/uploads/2024/12/Jeremiah-and-Lamentations-by-James-E.-Smith.pdf |
+| Jeremiah 25:15 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+25&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Jer&chapter=25&tab=commentaries&verse=15 |
+| Jeremiah 27:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+27&version=NET ; https://study.bible.org/byverse/Jeremiah%2B27?side=studies |
+| Jeremiah 28:13 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+28&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/jer.pdf |
+| Jeremiah 29:10 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+29&version=NET ; https://www.kregel.com/books/pdfs/excerpts/9780825446085.pdf |
+| Jeremiah 30:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+30&version=NET ; https://dukespace.lib.duke.edu/bitstreams/79e007d4-01a1-4672-be82-610448487b54/download |
+| Jeremiah 32:9 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+32&version=NET ; https://tips.translation.bible/story/translation-commentary-on-jeremiah-329/ |
+| Jeremiah 32:14 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+32&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Jer&chapter=32&verse=14 |
+| Jeremiah 33:11 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+33&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=33&tab=commentaries&theme=false&verse=11 |
+| Jeremiah 34:18 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+34&version=NET ; https://www.diva-portal.org/smash/get/diva2%3A1807508/FULLTEXT02.pdf |
+| Jeremiah 35:6 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+35&version=NET ; https://enduringword.com/bible-commentary/jeremiah-35/ |
+| Jeremiah 37:15 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+37&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Jer&chapter=37&tab=commentaries&verse=15 |
+| Jeremiah 38:7 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+38&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=38&tab=commentaries&verse=7 |
+| Jeremiah 38:11 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+38&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/jer.pdf |
+| Jeremiah 39:3 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+39&version=NET ; https://www.jstor.org/stable/3260173 |
+| Jeremiah 39:10 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+39&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Jer&chapter=39&verse=10 |
+| Jeremiah 40:10 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+40&version=NET ; https://old-tips.translation.bible/tip_verse/jeremiah-4010/ |
+| Jeremiah 41:5 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+41&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=41&tab=commentaries&verse=5 |
+| Jeremiah 41:8 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+41&version=NET ; https://tips.translation.bible/story/translation-commentary-on-jeremiah-418-2/ |
+| Jeremiah 43:7 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+43&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=43&tab=commentaries&theme=false&verse=7 |
+| Jeremiah 43:9 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+43&version=NET ; https://kjvstudy.kennethreitz.org/book/Jeremiah/chapter/43/verse/9 |
+| Jeremiah 44:17 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+44&version=NET ; https://www.sbl-site.org/assets/pdfs/pubs/9781628374643_OA.pdf |
+| Jeremiah 46:11 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+46&version=NET ; https://tips.translation.bible/story/translation-commentary-on-jeremiah-4611/ |
+| Jeremiah 47:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+47&version=NET ; https://biblia.com/books/fsb/Je47.1-5 |
+| Jeremiah 47:4 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+47&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=47&theme=wiki&verse=4 |
+| Jeremiah 48:11 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+48&version=NET ; https://biblenavigator.org/commentary-notes/Jeremiah/48 |
+| Jeremiah 49:1 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+49&version=NET ; https://classic.net.bible.org/verse.php?book=Jer&chapter=49&tab=commentaries&theme=false&verse=1 |
+| Jeremiah 49:28 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+49&version=NET ; https://classic.net.bible.org/passage.php?passage=jer+49%3A28%2C29 |
+| Jeremiah 50:2 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+50&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/jeremiah/50/2 |
+| Jeremiah 50:17 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+50&version=NET ; https://www.openbible.com/commentaries/jeremiah/50-17.htm |
+| Jeremiah 51:13 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+51&version=NET ; https://www.ccel.org/ccel/calvin/calcom21.ii.iv.xvii.html |
+| Lamentations 1:4 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+1&version=NET ; https://classic.net.bible.org/verse.php?book=Lam&chapter=1&tab=commentaries&verse=4 |
+| Lamentations 2:6 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+2&version=NET ; https://www.biblegateway.com/passage/?search=Lamentations+2&version=ESV%3BNET%3BNIV%3BNKJV%3BKJV |
+| Lamentations 4:2 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+4&version=NET ; https://tips.translation.bible/story/translation-commentary-on-lamentations-42/ |
+| Lamentations 5:4 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+5&version=NET ; https://tips.translation.bible/story/translation-commentary-on-lamentations-54/ |
+
+Resume: Ezekiel.
