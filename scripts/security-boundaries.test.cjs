@@ -386,7 +386,7 @@ assert.match(quizResponders, /answeredByTent\.get\(house\.id\)/);
 assert.match(cadetDashboard, /announcement_type === 'weekly_quiz_reminder'[\s\S]*<QuizResponders/);
 assert.match(cadetQuiz, /<QuizResponders[\s\S]*sessionId=\{session\.id\}[\s\S]*quizType=\{session\.quiz_type\}/);
 assert.match(instructorApp, /title: 'Bethel Stone', description: 'Overall Best Tent of the Month'/);
-assert.match(instructorApp, /title: 'Temple Mount', description: 'Overall Best Tent of the Year'/);
+assert.match(instructorApp, /title: 'Lumen Domus', description: 'Overall Best Tent of the Year'/);
 assert.match(instructorApp, /<MonthlyAwardNominees month=\{watchMonth\}/);
 const monthlyNominees = read('src/components/MonthlyAwardNominees.tsx');
 const monthlyNomineeSql = read('supabase/migrations/20260927072202_monthly_award_nominees.sql');
