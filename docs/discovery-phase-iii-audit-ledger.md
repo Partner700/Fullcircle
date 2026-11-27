@@ -514,3 +514,31 @@ Resume: Jeremiah original_language.
 | Lamentations 3:22 | Rewritten | https://biblehub.com/text/lamentations/3-22.htm |
 
 Resume: Ezekiel original_language.
+
+## Batch 30 — Ezekiel and Daniel lexical review
+
+19 entries rewritten and re-queried; recorded lexical reviews 375/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Ezekiel 2:1 | Rewritten | https://biblehub.com/text/ezekiel/2-1.htm |
+| Ezekiel 6:9 | Rewritten | https://biblehub.com/text/ezekiel/6-9.htm |
+| Ezekiel 9:4 | Rewritten | https://biblehub.com/text/ezekiel/9-4.htm |
+| Ezekiel 12:22 | Rewritten | https://biblehub.com/text/ezekiel/12-22.htm |
+| Ezekiel 14:3 | Rewritten | https://bible.usccb.org/bible/ezekiel/14 |
+| Ezekiel 23:4 | Rewritten | https://classic.net.bible.org/verse.php?book=Eze&chapter=23&verse=4 |
+| Ezekiel 32:21 | Rewritten | https://biblehub.com/text/ezekiel/32-21.htm |
+| Ezekiel 36:26 | Rewritten | https://biblehub.com/text/ezekiel/36-26.htm |
+| Ezekiel 37:7 | Rewritten | https://biblehub.com/text/ezekiel/37-9.htm |
+| Ezekiel 43:15 | Rewritten | https://biblehub.com/hebrew/741.htm ; https://bible.usccb.org/bible/ezekiel/43 |
+| Ezekiel 48:35 | Rewritten | https://biblehub.com/text/ezekiel/48-35.htm |
+| Daniel 1:6 | Rewritten | https://biblehub.com/text/daniel/1-6.htm |
+| Daniel 2:4 | Rewritten | https://bible.usccb.org/bible/daniel/2 |
+| Daniel 3:5 | Rewritten | https://classic.net.bible.org/verse.php?book=Dan&chapter=3&verse=5 |
+| Daniel 4:13 | Rewritten | https://biblehub.com/text/daniel/4-13.htm |
+| Daniel 5:25 | Rewritten | https://biblehub.com/text/daniel/5-25.htm ; https://biblehub.com/text/daniel/5-26.htm ; https://biblehub.com/text/daniel/5-28.htm |
+| Daniel 6:22 | Rewritten | https://biblehub.com/text/daniel/6-22.htm |
+| Daniel 7:13 | Rewritten | https://biblehub.com/text/daniel/7-13.htm |
+| Daniel 9:24 | Rewritten | https://biblehub.com/text/daniel/9-24.htm |
+
+Resume: minor prophets original_language.
