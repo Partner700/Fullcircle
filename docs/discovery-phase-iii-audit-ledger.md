@@ -228,3 +228,29 @@ Resume: 1 Samuel original_language.
 | 2 Samuel 22:3 | Rewritten | 2 Samuel 22:2–3; Psalm 18:2; Hebrew text and morphology: https://biblehub.com/text/2_samuel/22-3.htm |
 
 Resume: 1 Kings original_language.
+
+## Batch 20 — Kings lexical pass
+
+17 source-reviewed updates re-queried. Cumulative recorded lexical reviews: 177.
+
+| Reference | Verdict | Source note |
+|---|---|---|
+| 1 Kings 3:9 | Retained; source specified | 1 Kings 3:9–12; NET note on a hearing heart: https://www.biblegateway.com/passage/?search=1+Kings+3%3A9&version=NET |
+| 1 Kings 3:26 | Retained; source specified | 1 Kings 3:26; Genesis 43:30; NET lexical note on warm compassion: https://classic.net.bible.org/verse.php/verse.php?book=1Ki&chapter=3&verse=26 |
+| 1 Kings 7:21 | Rewritten | 1 Kings 7:21; NET explanatory notes on Jakin and Boaz: https://classic.net.bible.org/verse.php?book=1Ki&chapter=7&theme=false&verse=21 |
+| 1 Kings 9:13 | Rewritten | 1 Kings 9:11–14; NET note on Cabul and possible wordplay: https://classic.net.bible.org/passage.php?passage=1ki+9%3A10-13 |
+| 1 Kings 12:7 | Rewritten | 1 Kings 12:4,7; Hebrew morphology, H5647 and H5650: https://biblehub.com/text/1_kings/12-7.htm |
+| 1 Kings 17:1 | Retained; source specified | 1 Kings 17:1; 18:21,39; Brown–Driver–Briggs H452: https://biblehub.com/hebrew/452.htm |
+| 1 Kings 20:35 | Rewritten | 1 Kings 20:35; 2 Kings 2:3–5; 4:38; NET literal translation and guild interpretation: https://www.biblegateway.com/passage/?search=1+Kings+20%3A35-37&version=NET ; https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Sons-Prophets |
+| 2 Kings 1:2 | Rewritten | 2 Kings 1:2; Matthew 12:24; NET note on Baal Zebub and proposed Baal Zebul relation: https://classic.net.bible.org/bible.php?book=2Ki&chapter=1&theme=false |
+| 2 Kings 3:16 | Retained; source specified | 2 Kings 3:9,16–20; Jeremiah 14:3; NET note on gev and alternate renderings: https://classic.net.bible.org/verse.php?book=2Ki&chapter=3&theme=wiki&verse=16 |
+| 2 Kings 5:2 | Retained; source specified | 2 Kings 5:2,14; Westminster Leningrad Codex morphology: https://biblehub.com/text/2_kings/5-2.htm ; https://biblehub.com/text/2_kings/5-14.htm |
+| 2 Kings 5:10 | Retained; source specified | 2 Kings 5:10–14; Hebrew morphology of rachats H7364 and tabal H2881: https://www.knowing-jesus.com/interlinear/2-kings/5/10 ; https://biblehub.com/text/2_kings/5-14.htm |
+| 2 Kings 7:3 | Rewritten | 2 Kings 7:3; Leviticus 13:45–46; Hebrew morphology: https://biblehub.com/text/2_kings/7-3.htm |
+| 2 Kings 8:13 | Retained; source specified | 2 Kings 8:13; 2 Samuel 9:8; Hebrew morphology, kelev H3611: https://biblehub.com/text/2_kings/8-13.htm |
+| 2 Kings 9:3 | Retained; source specified | 2 Kings 9:3–6; 1 Samuel 10:1; Brown–Driver–Briggs H4886 and related noun H4899: https://biblehub.com/hebrew/4886.htm ; https://studybible.info/strongs/H4886 |
+| 2 Kings 21:13 | Rewritten | 2 Kings 21:13; Amos 7:7–8; NET literal translation of the measurement tools: https://classic.net.bible.org/verse.php?book=2Ki&chapter=21&verse=13 |
+| 2 Kings 24:17 | Rewritten | 2 Kings 24:17; 23:34; United Bible Societies translation commentary: https://tips.translation.bible/tip_verse/2kgs-2417/ ; Hebrew text: https://biblehub.com/text/2_kings/24-17.htm |
+| 2 Kings 25:27 | Rewritten | 2 Kings 25:27; Jeremiah 52:31; R. Da Riva et al., Royal Inscriptions of the Neo-Babylonian Empire, vol. 2, Amel-Marduk; Encyclopedia of the Bible: https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Evil-Merodach |
+
+Resume: 1 Chronicles original_language.
