@@ -118,3 +118,24 @@ Resume: Leviticus original-language entries, then Numbers and Deuteronomy.
 | Leviticus 20:24 | Retained; source specified | https://biblehub.com/strongs/hebrew/914.htm |
 | Leviticus 23:2 | Retained; source specified | https://study.bible.org/byverse/Leviticus%2B23 |
 Resume: Numbers and Deuteronomy original-language entries.
+
+## Batch 16 — Numbers lexical audit
+
+12 existing entries reviewed, source notes updated and independently re-queried (12/12). No new rows. Cumulative lexical reviews: 98.
+
+| Reference | Source |
+|---|---|
+| Numbers 1:2 | https://www.biblegateway.com/passage/?search=Numbers+1&version=NET |
+| Numbers 2:2 | https://biblehub.com/hebrew/1714.htm |
+| Numbers 12:8 | https://www.bible.com/bible/107/NUM.12.NET |
+| Numbers 13:16 | https://www.bible.com/bible/107/NUM.13.NET |
+| Numbers 17:8 | https://www.biblegateway.com/passage/?search=Jeremiah+1%3A11-12&version=NET |
+| Numbers 18:19 | https://classic.net.bible.org/verse.php?book=Num&chapter=18&verse=19 |
+| Numbers 21:8 | https://www.sefaria.org/Ramban_on_Numbers.21.8 |
+| Numbers 22:22 | https://biblehub.com/hebrew/7854.htm |
+| Numbers 23:7 | https://biblehub.com/hebrew/4912.htm |
+| Numbers 24:3 | https://classic.net.bible.org/verse.php?book=Num&chapter=24&verse=3 |
+| Numbers 25:3 | https://biblehub.com/hebrew/1167.htm |
+| Numbers 30:2 | https://classic.net.bible.org/verse.php?book=Num&chapter=30&verse=2 |
+
+Resume: Deuteronomy original_language.
