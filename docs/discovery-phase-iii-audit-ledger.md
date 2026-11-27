@@ -622,3 +622,28 @@ Resume: Mark original_language.
 | Luke 9:31 | Rewritten | https://biblehub.com/text/luke/9-31.htm |
 
 Resume: John original_language.
+
+## Batch 34 — John lexical review
+
+16 entries rewritten and re-queried. Recorded lexical reviews 444/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| John 1:1 | Rewritten | https://biblehub.com/text/john/1-1.htm |
+| John 1:14 | Rewritten | https://biblehub.com/text/john/1-14.htm |
+| John 10:16 | Rewritten | https://biblehub.com/text/john/10-16.htm |
+| John 11:16 | Rewritten | https://biblehub.com/text/john/11-16.htm |
+| John 14:16 | Rewritten | https://biblehub.com/text/john/14-16.htm |
+| John 14:2 | Rewritten | https://biblehub.com/text/john/14-2.htm |
+| John 15:2 | Rewritten | https://biblehub.com/text/john/15-2.htm ; https://biblehub.com/text/john/15-3.htm |
+| John 16:8 | Rewritten | https://biblehub.com/text/john/16-8.htm |
+| John 17:12 | Rewritten | https://biblehub.com/text/john/17-12.htm |
+| John 17:17 | Rewritten | https://biblehub.com/text/john/17-17.htm |
+| John 18:38 | Rewritten | https://biblehub.com/text/john/18-38.htm |
+| John 19:20 | Rewritten | https://biblehub.com/text/john/19-20.htm |
+| John 20:16 | Rewritten | https://biblehub.com/text/john/20-16.htm |
+| John 3:3 | Rewritten | https://biblehub.com/text/john/3-3.htm |
+| John 9:34 | Rewritten | https://biblehub.com/text/john/9-34.htm ; https://biblehub.com/text/john/9-22.htm |
+| John 9:7 | Rewritten | https://biblehub.com/text/john/9-7.htm |
+
+Resume: Acts original_language.
