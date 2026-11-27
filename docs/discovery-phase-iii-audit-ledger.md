@@ -695,3 +695,32 @@ Resume: Corinthians original_language.
 | 2 Corinthians 7:10 | Rewritten | https://biblehub.com/text/2_corinthians/7-10.htm |
 
 Resume: Galatians original_language.
+
+## Batch 37 — Galatians through Thessalonians lexical review
+
+20 entries rewritten and re-queried. Recorded lexical reviews 494/533. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Galatians 1:14 | Rewritten | https://biblehub.com/text/galatians/1-14.htm |
+| Galatians 5:13 | Rewritten | https://biblehub.com/text/galatians/5-13.htm |
+| Galatians 5:22 | Rewritten | https://biblehub.com/text/galatians/5-22.htm |
+| Galatians 6:2 | Rewritten | https://biblehub.com/text/galatians/6-2.htm |
+| Ephesians 1:10 | Rewritten | https://biblehub.com/text/ephesians/1-10.htm |
+| Ephesians 2:19 | Rewritten | https://biblehub.com/text/ephesians/2-19.htm |
+| Ephesians 2:8 | Rewritten | https://biblehub.com/text/ephesians/2-8.htm |
+| Ephesians 3:14 | Rewritten | https://biblehub.com/text/ephesians/3-14.htm |
+| Ephesians 3:6 | Rewritten | https://biblehub.com/text/ephesians/3-6.htm |
+| Ephesians 4:12 | Rewritten | https://biblehub.com/text/ephesians/4-12.htm |
+| Philippians 1:5 | Rewritten | https://biblehub.com/text/philippians/1-5.htm |
+| Philippians 2:25 | Rewritten | https://biblehub.com/text/philippians/2-25.htm |
+| Philippians 2:7 | Rewritten | https://biblehub.com/text/philippians/2-7.htm |
+| Colossians 1:13 | Rewritten | https://biblehub.com/text/colossians/1-13.htm |
+| 1 Thessalonians 3:10 | Rewritten | https://biblehub.com/text/1_thessalonians/3-10.htm |
+| 1 Thessalonians 4:17 | Rewritten | https://biblehub.com/text/1_thessalonians/4-17.htm |
+| 1 Thessalonians 5:21 | Rewritten | https://biblehub.com/text/1_thessalonians/5-21.htm |
+| 1 Thessalonians 5:5 | Rewritten | https://biblehub.com/text/1_thessalonians/5-5.htm |
+| 2 Thessalonians 2:15 | Rewritten | https://biblehub.com/text/2_thessalonians/2-15.htm |
+| 2 Thessalonians 3:10 | Rewritten | https://biblehub.com/text/2_thessalonians/3-10.htm |
+
+Resume: Timothy through Philemon original_language.
