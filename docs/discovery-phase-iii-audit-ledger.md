@@ -351,3 +351,26 @@ Resume: Psalms original_language.
 | Psalms 38:4 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.1-Ps.41&version=NET |
 
 Resume: Psalms 43:3 onward, original_language.
+
+## Batch 24 — Psalms individual verse review
+
+14 existing rows supplemented with verse-specific sources and re-queried. Cumulative lexical reviews: 261/533 (includes Book I reviews with corroboration still pending as noted).
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Psalms 46:10 | Retained; source added | https://search.biblegateway.com/passage/?search=Ps.46.10&version=NET |
+| Psalms 49:7 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.49.7-Ps.49.9&version=NET |
+| Psalms 51:10 | Retained; source added | https://www.cnbible.com/text/psalms/51-10.htm |
+| Psalms 53:6 | Retained; source added | https://classic.net.bible.org/verse.php?book=Psa&chapter=53&verse=6 |
+| Psalms 68:11 | Retained; source added | https://classic.net.bible.org/verse.php?book=Psa&chapter=68&verse=11 |
+| Psalms 72:1 | Retained; source added | https://classic.net.bible.org/verse.php?book=Psa&chapter=72&verse=1 |
+| Psalms 76:2 | Retained; source added | https://www.biblegateway.com/passage/?search=Psalm+76%3A2&version=NET |
+| Psalms 78:24 | Retained; source added | https://www.biblegateway.com/passage/?search=Ps.78.24&version=NET |
+| Psalms 86:5 | Retained; source added | https://biblehub.com/text/psalms/86-5.htm |
+| Psalms 86:11 | Retained; source added | https://www.biblegateway.com/passage/?search=Psalm+86%3A5-6%2CPsalm+86%3A11&version=NIV |
+| Psalms 87:4 | Retained; source added | https://classic.net.bible.org/passage.php?passage=Psa+87%3A4&theme=false |
+| Psalms 109:4 | Retained; source added | https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=109&verse=4 |
+| Psalms 131:2 | Retained; source added | https://classic.net.bible.org/verse.php/verse.php?book=Psa&chapter=131&verse=2 |
+| Psalms 148:7 | Retained; source added | https://www.openbible.com/text/psalms/148-7.htm |
+
+Resume: remaining Psalms original_language rows not in batches 23–24, then Proverbs. Do not skip unreviewed rows.
