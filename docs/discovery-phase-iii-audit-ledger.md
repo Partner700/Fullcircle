@@ -933,3 +933,20 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Psalms 8:5 | Rewritten | https://www.biblegateway.com/passage/?search=Psalm+8&version=NIV%3BNET |
 | Psalms 82:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=82&tab=commentaries&verse=1 |
 | Psalms 97:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Psa&chapter=97&theme=wiki&verse=11 |
+
+## Batch 47 — Scholarly debate, final first-pass batch
+
+10 entries revised and re-queried. Cumulative 110/110, completing this category's recorded first pass. Contested interpretations remain qualified; cross-category corroboration, duplicate screening and live rendering verification are still pending.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Revelation 13:18 | Rewritten | https://classic.net.bible.org/verse.php?book=Rev&chapter=13&tab=commentaries&verse=18 ; https://www.tyndalebulletin.org/article/29233-p115-and-the-number-of-the-beast |
+| Revelation 16:16 | Rewritten | https://classic.net.bible.org/verse.php?book=Rev&chapter=16&theme=false&verse=16 ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/revelation/16/16 |
+| Revelation 17:9 | Rewritten | https://bible.usccb.org/bible/revelation/17 |
+| Revelation 22:14 | Rewritten | https://www.biblegateway.com/passage/?search=Revelation+22%3A14&version=NET%3BNKJV ; https://www.cambridge.org/core/journals/new-testament-studies/article/abs/text-of-revelation-2214/7409E6E65146420ECAFFFC338F17FF25 |
+| Romans 5:1 | Rewritten | https://bible.org/article/do-christians-have-peace-god-brief-examination-textual-problem-romans-51 |
+| Ruth 3:15 | Rewritten | https://www.biblegateway.com/passage/?search=Ruth+3%3A15&version=NET |
+| Song of Solomon 2:1 | Rewritten | https://classic.net.bible.org/passage.php?mode=print&passage=Sos+2%3A1 |
+| Song of Solomon 5:14 | Rewritten | https://classic.net.bible.org/verse.php?book=sos&chapter=5&verse=14 |
+| Song of Solomon 6:13 | Rewritten | https://classic.net.bible.org/passage.php?passage=Sos+6%3A13&theme=false |
+| Zechariah 12:11 | Rewritten | https://classic.net.bible.org/verse.php?book=zec&chapter=12&verse=11 |
