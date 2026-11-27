@@ -801,3 +801,27 @@ Resume: audit highest-risk scholarly_debate entries, then ancient_culture and re
 | 1 Samuel 19:13 | Rewritten | https://classic.net.bible.org/passage.php?passage=1sa+19%3A13%2C16 |
 
 Resume: remaining scholarly_debate rows not yet logged; then other categories and independent corroboration caveats, semantic duplicates, images, tests and live rendering.
+
+## Batch 41 — Scholarly debate, part 2
+
+17 rewritten after consulting accessible NET verse notes and Ibn Ezra. Database confirmed 17 updates. Cumulative scholarly-debate review 28/110. Earlier 1 Chronicles 2:15 and 2 Chronicles 21:12 source checks remain outstanding; re-query unmarked records.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| 1 Samuel 27:7 | Rewritten | https://classic.net.bible.org/verse.php?book=1sa&chapter=27&verse=7 |
+| 1 Samuel 5:6 | Rewritten | https://classic.net.bible.org/verse.php?book=1Sa&chapter=5&theme=false&verse=6 |
+| 1 Thessalonians 2:7 | Rewritten | https://www.biblegateway.com/passage/?search=1+Thessalonians+2%3A7&version=NET |
+| 1 Timothy 1:4 | Rewritten | https://classic.net.bible.org/passage.php?passage=1Ti+1%3A4 |
+| 2 Chronicles 22:2 | Rewritten | https://classic.net.bible.org/passage.php?passage=2Ch+22%3A2 |
+| 2 Chronicles 9:21 | Rewritten | https://classic.net.bible.org/verse.php?book=2Ch&chapter=9&verse=21 |
+| 2 John 1:1 | Rewritten | https://classic.net.bible.org/verse.php?book=2Jo&chapter=1&theme=false&verse=1 |
+| 2 Samuel 17:25 | Rewritten | https://classic.net.bible.org/verse.php?book=2Sa&chapter=17&theme=false&verse=25 |
+| Acts 7:16 | Rewritten | https://classic.net.bible.org/verse.php?book=Act&chapter=7&tab=commentaries&verse=16 |
+| Amos 7:7 | Rewritten | https://classic.net.bible.org/verse.php?book=Amo&chapter=7&theme=false&verse=7 |
+| Deuteronomy 26:5 | Rewritten | https://www.sefaria.org/Ibn_Ezra_on_Deuteronomy.26.5.1/ |
+| Deuteronomy 3:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Deu&chapter=3&tab=commentaries&verse=11 |
+| Deuteronomy 32:8 | Rewritten | https://classic.net.bible.org/verse.php?book=Deu&chapter=32&tab=commentaries&verse=8 |
+| Ecclesiastes 11:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Ecc&chapter=11&verse=1 |
+| Ecclesiastes 2:8 | Rewritten | https://classic.net.bible.org/passage.php?passage=Ecc+2%3A8 |
+| Ecclesiastes 3:11 | Rewritten | https://classic.net.bible.org/passage.php?passage=Ecc+3%3A11 |
+| Esther 7:9 | Rewritten | https://classic.net.bible.org/verse.php?book=Est&chapter=7&theme=wiki&verse=9 |
