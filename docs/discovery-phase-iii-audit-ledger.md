@@ -2326,3 +2326,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Ezra 10:13 | Retained | https://www.biblegateway.com/passage/?search=Ezra+10%3A11-13&version=NET%3BNKJV%3BNIV%3BKJV%3BESV |
 | Ezra 3:12 | Retained | https://bible.usccb.org/bible/ezra/3 |
 | Ezra 3:3 | Revised | https://bible.usccb.org/bible/ezra/3 |
+
+
+## Batch 83 — Scripture detail: Ezra through Isaiah 46
+
+20 rows editorially reviewed against biblical references and existing source notes; four rewrites. Added primary-text reference links where missing. Separate database readback passed. External page retrieval and independent corroboration remain outstanding for this batch; a reference link is not evidence of successful retrieval. No illustration or production certification.
+
+| Reference | Verdict | Sources for verification |
+|---|---|---|
+| Ezra 6:15 | Revised | https://bible.usccb.org/bible/ezra/6 |
+| Ezra 8:15 | Revised | https://bible.usccb.org/bible/ezra/8 |
+| Galatians 1:17 | Retained | https://bible.usccb.org/bible/galatians/1 |
+| Galatians 2:11 | Retained | https://bible.usccb.org/bible/galatians/2 |
+| Genesis 20:7 | Retained | https://www.bible.com/bible/107/GEN.20.NET |
+| Genesis 22:13 | Retained | https://www.bible.com/bible/107/GEN.22.NET |
+| Genesis 36:31 | Retained | https://www.bible.com/bible/107/GEN.36.NET |
+| Genesis 46:27 | Retained | https://www.bible.com/bible/107/GEN.46.NET |
+| Genesis 5:27 | Retained | https://bible.usccb.org/bible/genesis/5 |
+| Genesis 7:11 | Retained | https://bible.usccb.org/bible/genesis/7 ; https://bible.usccb.org/bible/genesis/8 |
+| Hosea 4:6 | Retained | https://bible.usccb.org/bible/hosea/4 |
+| Isaiah 10:5 | Retained | https://bible.usccb.org/bible/isaiah/10 |
+| Isaiah 14:4 | Retained | https://bible.usccb.org/bible/isaiah/14 |
+| Isaiah 19:25 | Retained | https://bible.usccb.org/bible/isaiah/19 |
+| Isaiah 23:8 | Retained | https://bible.usccb.org/bible/isaiah/23 |
+| Isaiah 24:2 | Revised | https://bible.usccb.org/bible/isaiah/24 |
+| Isaiah 31:3 | Retained | https://bible.usccb.org/bible/isaiah/31 |
+| Isaiah 32:15 | Retained | https://bible.usccb.org/bible/isaiah/32 |
+| Isaiah 33:15 | Retained | https://bible.usccb.org/bible/isaiah/33 |
+| Isaiah 46:4 | Revised | https://bible.usccb.org/bible/isaiah/46 |
