@@ -825,3 +825,35 @@ Resume: remaining scholarly_debate rows not yet logged; then other categories an
 | Ecclesiastes 2:8 | Rewritten | https://classic.net.bible.org/passage.php?passage=Ecc+2%3A8 |
 | Ecclesiastes 3:11 | Rewritten | https://classic.net.bible.org/passage.php?passage=Ecc+3%3A11 |
 | Esther 7:9 | Rewritten | https://classic.net.bible.org/verse.php?book=Est&chapter=7&theme=wiki&verse=9 |
+
+## Batch 42 — Scholarly debate, part 3
+
+24 rewritten after consulting the listed accessible sources, including the previously blocked Chronicles entries. Database independently re-queried. Cumulative scholarly-debate review: 52/110.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| 1 Chronicles 2:15 | Rewritten | https://tips.translation.bible/story/translation-commentary-on-1-chronicles-215/ |
+| 2 Chronicles 21:12 | Rewritten | https://truthaccordingtoscripture.com/commentaries/ebc/2-chronicles-21.php |
+| 2 Samuel 24:1 | Rewritten | https://classic.net.bible.org/verse.php?book=1Ch&chapter=21&tab=commentaries&theme=false&verse=1 |
+| Exodus 14:21 | Rewritten | https://journals.plos.org/plosone/article?id=10.1371%2Fjournal.pone.0012481 |
+| Exodus 26:15 | Rewritten | https://bible.sabda.org/verse.php?book=Exo&chapter=26&tab=text&verse=15 |
+| Exodus 28:30 | Rewritten | https://www.biblegateway.com/passage/?search=Exodus+28%3A30&version=NET |
+| Exodus 30:34 | Rewritten | https://www.blueletterbible.org/lexicon/h7827/lsb/wlc/ |
+| Exodus 6:3 | Rewritten | https://classic.net.bible.org/verse.php?book=Exo&chapter=6&tab=commentaries&verse=3 |
+| Ezekiel 13:18 | Rewritten | https://classic.net.bible.org/verse.php?book=Eze&chapter=13&tab=commentaries&theme=wiki&verse=18 |
+| Ezekiel 14:14 | Rewritten | https://classic.net.bible.org/verse.php?book=Eze&chapter=14&tab=commentaries&verse=14 |
+| Ezekiel 20:26 | Rewritten | https://classic.net.bible.org/passage.php?passage=Eze+20%3A25%2C26 |
+| Ezekiel 28:13 | Rewritten | https://classic.net.bible.org/verse.php?book=Eze&chapter=28&theme=wiki&verse=13 |
+| Ezekiel 38:2 | Rewritten | https://classic.net.bible.org/verse.php?book=Eze&chapter=38&tab=commentaries&verse=2 |
+| Genesis 47:31 | Rewritten | https://classic.net.bible.org/verse.php?book=Gen&chapter=47&tab=commentaries&verse=31 |
+| Genesis 49:10 | Rewritten | https://classic.net.bible.org/verse.php?book=Gen&chapter=49&theme=false&verse=10 |
+| Hebrews 9:16 | Rewritten | https://classic.net.bible.org/verse.php?book=Heb&chapter=9&theme=false&verse=16 ; https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Covenant-New-Testament |
+| Hebrews 9:4 | Rewritten | https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/hebrews/9/4 |
+| Isaiah 28:10 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=28&tab=commentaries&theme=false&verse=10 |
+| Isaiah 34:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=34&tab=commentaries&verse=11 |
+| Isaiah 38:8 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=38&tab=commentaries&verse=8 |
+| Jeremiah 11:15 | Rewritten | https://classic.net.bible.org/verse.php?book=Jer&chapter=11&verse=15 |
+| Jeremiah 13:4 | Rewritten | https://bible.usccb.org/bible/jeremiah/13 ; https://study.bible.org/byverse/Jeremiah%2B13%3A4?side=studies |
+| Job 13:15 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=13&tab=commentaries&theme=wiki&verse=15 |
+| Job 23:12 | Rewritten | https://classic.net.bible.org/verse.php?book=Job&chapter=23&theme=false&verse=12 |
+Resume: all remaining scholarly_debate entries without the Phase III scholarly debate source marker.
