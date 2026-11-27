@@ -2650,3 +2650,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 John 1:1 | Retained | https://www.biblegateway.com/passage/?search=1+joh+1%3A1&version=NIV; Letter verse result retrieved; Gospel prologue comparison pending |
 | 1 John 3:12 | Retained | https://www.biblegateway.com/passage/?search=Genesis+4%3A6-8%2C1+John+3%3A10-16&version=NIV; Comparative passage result retrieved |
 | 1 John 5:13 | Retained | https://www.biblegateway.com/passage/?search=John+20%3A31%2C1+John+5%3A13&version=NIV; Comparative result retrieved |
+
+
+## Batch 95 — Textual connections: 1 Kings through 1 Samuel 24:14
+
+20 first-pass editorial reviews, 15 source-note updates, five substantive rewrites. Published search excerpts retrieved for 15; five entries retained unchanged pending source retrieval. Full chapter and independent secondary corroboration incomplete as recorded below. All 20 records read back against expected values. No illustration or production certification.
+
+| Reference | Verdict | Retrieved sources / limitations |
+|---|---|---|
+| 1 Kings 10:14 | Revised | https://www.biblegateway.com/passage/?search=1+Kings+10%3A14-16&version=NET; Kings text and comparative Revelation/Chronicles search excerpt retrieved; proposed literary link not established. |
+| 1 Kings 11:3 | Revised | https://www.biblegateway.com/passage/?search=Deuteronomy+17%3A17-20%2C1+Kings+11%3A1-4&version=NKJV%3BNIV; Comparative published result retrieved; horses cross-reference no longer needed. |
+| 1 Kings 12:28 | Revised | https://www.biblegateway.com/passage/?search=Exodus+32%3A4%2CExodus+32%3A8%2C1+Kings+12%3A28-33&version=NIV%3BKJV%3BNKJV%3BESV; Comparative published result retrieved. |
+| 1 Kings 13:2 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+13%2C2+Kings+23%3A15-18&version=NIV; Comparative published result retrieved. |
+| 1 Kings 18:31 | Pending source check | No new source; Existing comparative URL retained; no new independent result for this pair. |
+| 1 Kings 19:8 | Retained | https://www.biblegateway.com/passage/?search=Exodus+34%3A28%2C1+Kings+19%3A8&version=NIV; Comparative result retrieved. |
+| 1 Kings 2:35 | Retained | https://www.biblegateway.com/passage/?search=1+Kings+2%3A35%2CEzekiel+40%3A46%2CEzekiel+44%3A15&version=NASB1995; Comparative result retrieved. |
+| 1 Kings 21:13 | Revised | https://www.biblegateway.com/passage/?search=Deut.19.15-21&version=NIV ; https://www.biblegateway.com/passage/?search=1+Kings+21%3A13-15&version=NIV; Both primary passage excerpts retrieved. |
+| 1 Kings 8:9 | Pending source check | No new source; Ark inventory comparison and competing readings require independent retrieval; retained unchanged. |
+| 1 Peter 2:9 | Retained | https://www.biblegateway.com/passage/?search=Exodus+19%3A5-Exodus+19%3A6%2CIsaiah+43%3A20%2C1+Peter+2%3A9%2CExodus+19%3A5%2CDeuteronomy+4%3A20%2CTitus+2%3A14%2C1+Peter+2%3A9%2CIsaiah+43%3A21%2C1+Peter+2%3A9%2CIsaiah+9%3A2&version=NASB%3BNIV%3BNKJV; Comparative references retrieved. |
+| 1 Peter 3:6 | Retained | https://www.biblegateway.com/passage/?search=1+Peter+3%3A6%2CGenesis+18%3A12&version=NIV ; https://www.biblegateway.com/passage/?search=1+Peter+3%3A6-7&version=NIV; Comparative references and following verse retrieved. |
+| 1 Peter 5:2 | Retained | https://www.biblegateway.com/passage/?search=1+Peter+5%3A2-3%2CActs+20%3A28&version=NASB; Comparative result retrieved; Acts 20:17 remains pending. |
+| 1 Samuel 11:15 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+11%3A15; Samuel verse and Joshua 5:9 cross-reference retrieved; Joshua primary text and geography not independently checked. |
+| 1 Samuel 15:22 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+15%3A22%2CPsalm+51%3A18-Psalm+51%3A19%2CIsaiah+1%3A11-Isaiah+1%3A18%2CHosea+6%3A6%2CAmos+5%3A21-Amos+5%3A24&version=NABRE%3BNIV; Comparative result retrieved; Hebrew lexical check pending. |
+| 1 Samuel 16:11 | Pending source check | No new source; Existing reference retained; comparative passages not retrieved. |
+| 1 Samuel 17:49 | Revised | https://www.biblegateway.com/passage/?search=2+Samuel+21%3A19&version=NET; NET textual note retrieved; Chronicles and Samuel 17 primary text follow-up pending. |
+| 1 Samuel 19:24 | Pending source check | No new source; Comparative retrieval not established. |
+| 1 Samuel 21:1 | Retained | https://www.biblegateway.com/passage/?search=1+Sam+21%3A1%2CMark+2%3A26%2CNeh+11%3A32%2CIsa+10%3A32%2C1+Sam+16%3A4%2C1+Sam+14%3A3%2C1+Sam+22%3A9-19&version=NRSVUE%3BNIV; Comparative result retrieved; geographical identification not independently verified. |
+| 1 Samuel 22:20 | Retained | https://www.biblegateway.com/passage/?search=1+Samuel+22%3A20-1+Samuel+22%3A23%2C1+Samuel+23%3A6%2C1+Samuel+30%3A7%2C1+Kings+2%3A22%2C1+Kings+2%3A26%2C1+Kings+2%3A27%2CMark+2%3A6&version=NKJV; Comparative result explicitly identifies fulfilment; earlier oracle pending. |
+| 1 Samuel 24:14 | Pending source check | No new source; Comparative retrieval not established. |
