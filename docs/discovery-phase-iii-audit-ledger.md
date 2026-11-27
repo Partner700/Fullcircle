@@ -451,3 +451,43 @@ Resume: Ecclesiastes original_language, then Song of Solomon and prophetic books
 | Song of Solomon 8:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Sos&chapter=8&theme=false&verse=6 |
 
 Resume: Isaiah original_language.
+
+## Batch 28 — Isaiah lexical review
+
+31 existing entries rewritten using inspected Hebrew texts, NET notes and Latin Vulgate; 31/31 re-queried. Recorded lexical reviews: 342/533. Separated overlapping Cyrus discoveries at 44:28 and 45:1. Earlier independent corroboration caveats remain.
+
+| Reference | Verdict | Inspected source |
+|---|---|---|
+| Isaiah 3:15 | Rewritten | https://biblehub.com/text/isaiah/3-15.htm |
+| Isaiah 4:2 | Rewritten | https://biblehub.com/text/isaiah/4-2.htm |
+| Isaiah 5:7 | Rewritten | https://biblehub.com/text/isaiah/5-7.htm |
+| Isaiah 6:2 | Rewritten | https://www.biblegateway.com/passage/?search=Isa.6&version=NET |
+| Isaiah 7:14 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=7&verse=14 |
+| Isaiah 8:1 | Rewritten | https://biblehub.com/text/isaiah/8-1.htm |
+| Isaiah 9:6 | Rewritten | https://classic.net.bible.org/verse.php?book=isa&chapter=9&verse=6 |
+| Isaiah 11:1 | Rewritten | https://biblehub.com/text/isaiah/11-1.htm |
+| Isaiah 13:1 | Rewritten | https://biblehub.com/text/isaiah/13-1.htm |
+| Isaiah 14:12 | Rewritten | https://biblehub.com/text/isaiah/14-12.htm ; https://biblehub.com/vul/isaiah/14.htm |
+| Isaiah 21:11 | Rewritten | https://biblehub.com/text/isaiah/21-11.htm |
+| Isaiah 26:3 | Rewritten | https://biblehub.com/text/isaiah/26-3.htm |
+| Isaiah 27:1 | Rewritten | https://biblehub.com/text/isaiah/27-1.htm |
+| Isaiah 29:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=29&verse=1 |
+| Isaiah 30:7 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=30&verse=7 |
+| Isaiah 31:5 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=31&verse=5 |
+| Isaiah 33:22 | Rewritten | https://biblehub.com/text/isaiah/33-22.htm |
+| Isaiah 40:3 | Rewritten | https://www.biblegateway.com/passage/?search=Isa.40.3&version=NET |
+| Isaiah 40:6 | Rewritten | https://classic.net.bible.org/passage.php?passage=Isa+40%3A6 |
+| Isaiah 41:14 | Rewritten | https://biblehub.com/text/isaiah/41-14.htm |
+| Isaiah 43:1 | Rewritten | https://biblehub.com/text/isaiah/43-1.htm |
+| Isaiah 44:28 | Rewritten | https://biblehub.com/text/isaiah/44-28.htm |
+| Isaiah 45:1 | Rewritten | https://biblehub.com/text/isaiah/45-1.htm |
+| Isaiah 45:7 | Rewritten | https://biblehub.com/text/isaiah/45-7.htm |
+| Isaiah 50:4 | Rewritten | https://biblehub.com/text/isaiah/50-4.htm |
+| Isaiah 53:5 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=53&theme=false&verse=5 |
+| Isaiah 57:15 | Rewritten | https://biblehub.com/text/isaiah/57-15.htm |
+| Isaiah 61:2 | Rewritten | https://biblehub.com/text/isaiah/61-2.htm |
+| Isaiah 62:4 | Rewritten | https://biblehub.com/text/isaiah/62-4.htm |
+| Isaiah 64:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=64&verse=6 |
+| Isaiah 65:11 | Rewritten | https://classic.net.bible.org/verse.php?book=Isa&chapter=65&verse=11 |
+
+Resume: Jeremiah original_language.
