@@ -2410,3 +2410,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Joshua 14:10 | Retained | https://www.biblegateway.com/passage/?search=Joshua+14%3A7-14%3A10&version=NIV%3BESV; primary text or relevant excerpt consulted |
 | Joshua 17:3 | Retained | https://www.biblegateway.com/passage/?search=Joshua+17%3A3-6&version=NIV; partial excerpt |
 | Joshua 20:7 | Revised | https://classic.net.bible.org/passage.php/passage.php?passage=Jos+20%3A7-9; primary text or relevant excerpt consulted |
+
+
+## Batch 86 — Scripture detail: Joshua through Luke 7
+
+20 first-pass editorial reviews with retrieved primary text, published verse excerpts or commentary; eight rewrites. Alternate publications used for blocked USCCB pages. Joshua 4:19 Exodus cross-reference and Luke 13:4 specific archaeological identification remain pending; other secondary claims and cross-references are not comprehensively corroborated. Distinct Leviticus restitution entries now address different legal aspects. All 20 live rows independently read back. No illustration or production certification.
+
+| Reference | Verdict | Source / retrieval status |
+|---|---|---|
+| Joshua 4:19 | Retained | https://bible.usccb.org/bible/joshua/4 ; https://bible.usccb.org/bible/joshua/5; Joshua dates verified; Exodus 12 cross-reference pending |
+| Joshua 6:3 | Retained | https://bible.usccb.org/bible/joshua/6; primary text or relevant excerpt/commentary consulted |
+| Judges 15:20 | Retained | https://www.biblegateway.com/passage/?search=Judges+15%3A20%2C+16%3A31&version=NIV; primary text or relevant excerpt/commentary consulted |
+| Judges 2:9 | Revised | https://old-tips.translation.bible/story/translation-commentary-on-judges-29/; primary text or relevant excerpt/commentary consulted |
+| Judges 20:28 | Retained | https://www.biblegateway.com/passage/?search=Judges+20%3A28-30&version=NABRE%3BKJV; primary text or relevant excerpt/commentary consulted |
+| Lamentations 2:9 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+2%3A9&version=KJV%3BNKJV%3BNIV%3BESV%3BNASB; primary text or relevant excerpt/commentary consulted |
+| Lamentations 3:1 | Retained | https://kerux.com/doc/1102R1.html ; https://bible.usccb.org/bible/lamentations/0; primary text or relevant excerpt/commentary consulted |
+| Lamentations 4:13 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+4%3A13&version=NIV; primary text or relevant excerpt/commentary consulted |
+| Lamentations 5:1 | Retained | https://bible.usccb.org/bible/lamentations/0 ; https://kerux.com/doc/1102R1.html; primary text or relevant excerpt/commentary consulted |
+| Leviticus 21:22 | Retained | https://bible.usccb.org/bible/leviticus/21; primary text or relevant excerpt/commentary consulted |
+| Leviticus 22:14 | Revised | https://bible.usccb.org/bible/leviticus/22; primary text or relevant excerpt/commentary consulted |
+| Leviticus 24:5 | Revised | https://bible.usccb.org/bible/leviticus/24; primary text or relevant excerpt/commentary consulted |
+| Leviticus 5:16 | Revised | https://bible.usccb.org/bible/leviticus/5; primary text or relevant excerpt/commentary consulted |
+| Leviticus 9:1 | Revised | https://bible.usccb.org/bible/leviticus/9; primary text or relevant excerpt/commentary consulted |
+| Luke 12:6 | Revised | https://www.biblegateway.com/passage/?search=Matthew+10%3A29%2CLuke+12%3A6&version=NIV ; https://www.biblegateway.com/passage/?search=Luke+12%3A6%2CLuke+12%3A24%2CPsalm+147%3A9%2CPsalm+50%3A10-11%2CMatthew+10%3A29&version=NIV%3BNASB%3BESV%3BKJV%3BNKJV; primary text or relevant excerpt/commentary consulted |
+| Luke 13:4 | Retained | https://bible.usccb.org/bible/luke/13; primary text verified; specific archaeological identification pending |
+| Luke 14:28 | Retained | https://www.biblegateway.com/passage/?search=Luke+14%3A28-33&version=NIV%3BKJV; primary text or relevant excerpt/commentary consulted |
+| Luke 3:23 | Retained | https://www.biblegateway.com/passage/?search=Matthew+1%3A1-17%3B+Luke+3%3A23b-38%3B+John+1%3A1-18%3B+Luke+1%3A1-25&version=NKJV ; https://classic.net.bible.org/passage.php?passage=Luk+3%3A31; primary text or relevant excerpt/commentary consulted |
+| Luke 5:39 | Revised | https://classic.net.bible.org/bible.php?book=Luk&chapter=5; primary text or relevant excerpt/commentary consulted |
+| Luke 7:41 | Revised | https://bible.usccb.org/bible/luke/7; primary text or relevant excerpt/commentary consulted |
