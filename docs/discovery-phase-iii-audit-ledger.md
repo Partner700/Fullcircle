@@ -2159,3 +2159,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 Timothy 5:9 | Retained | https://classic.net.bible.org/verse.php?book=1Ti&chapter=5&verse=9 |
 | 2 Chronicles 11:13 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=11 |
 | 2 Chronicles 12:15 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=12 |
+
+
+## Batch 76 — Scripture detail: 2 Chronicles
+
+15 further rows reviewed against published biblical text, source notes updated and re-read. Three facts clarified kinship, the cost of reversing a decision, and the chronology of reform. First-pass textual review, not historical corroboration or illustration review.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 2 Chronicles 14:11 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+14&version=NIV%3BNET%3BNKJV%3BKJV |
+| 2 Chronicles 14:7 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+14&version=NIV%3BNET%3BNKJV%3BKJV |
+| 2 Chronicles 15:3 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=15 |
+| 2 Chronicles 18:18 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=18 |
+| 2 Chronicles 19:6 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=19 |
+| 2 Chronicles 20:12 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=20 |
+| 2 Chronicles 22:11 | Revised | https://classic.net.bible.org/bible.php?book=2Ch&chapter=22 |
+| 2 Chronicles 25:9 | Revised | https://classic.net.bible.org/bible.php?book=2Ch&chapter=25 |
+| 2 Chronicles 26:16 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=26 |
+| 2 Chronicles 28:23 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=28 |
+| 2 Chronicles 30:18 | Retained | https://www.biblegateway.com/passage/?search=2+Chronicles+30%3A18-20&version=NET |
+| 2 Chronicles 32:31 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=32 |
+| 2 Chronicles 34:3 | Revised | https://classic.net.bible.org/bible.php?book=2Ch&chapter=34 |
+| 2 Chronicles 5:13 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=5 |
+| 2 Chronicles 6:32 | Retained | https://classic.net.bible.org/bible.php?book=2Ch&chapter=6 |
