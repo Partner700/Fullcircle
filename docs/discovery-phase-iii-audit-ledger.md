@@ -281,3 +281,39 @@ Resume: 1 Chronicles original_language.
 | Esther 9:26 | Retained; source specified | Esther 3:7; 9:24–26; NET Hebrew and translation notes: https://classic.net.bible.org/verse.php?book=Est&chapter=9&theme=false&verse=26 |
 
 Resume: Job original_language.
+
+## Batch 22 — Job original-language audit
+
+27 existing entries updated and re-queried; 27/27 contain source URLs. Cumulative lexical audit: 222/533.
+
+| Reference | Verdict | Source evidence |
+|---|---|---|
+| Job 1:1 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=1&verse=1 |
+| Job 1:5 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=1&verse=5 |
+| Job 1:6 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=1&verse=6 |
+| Job 3:8 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=3&verse=8 |
+| Job 5:7 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=5&verse=7 |
+| Job 7:1 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=7&verse=1 |
+| Job 9:9 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=9&verse=9 |
+| Job 9:33 | Retained; source specified | https://biblehub.com/text/job/9-33.htm |
+| Job 10:17 | Rewritten | https://biblehub.com/text/job/10-17.htm |
+| Job 13:4 | Rewritten | https://biblehub.com/text/job/13-4.htm |
+| Job 14:13 | Retained; source specified | https://biblehub.com/text/job/14-13.htm |
+| Job 15:2 | Rewritten | https://biblehub.com/text/job/15-2.htm |
+| Job 16:2 | Rewritten | https://biblehub.com/text/job/16-2.htm |
+| Job 18:14 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=18&verse=14 |
+| Job 19:20 | Retained; source specified | https://www.biblegateway.com/passage/?search=Job.19&version=NET%3BNIV |
+| Job 19:25 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Job+19%3A25-28 |
+| Job 22:24 | Retained; source specified | https://biblehub.com/text/job/22-24.htm |
+| Job 25:2 | Rewritten | https://biblehub.com/text/job/25-2.htm |
+| Job 26:12 | Rewritten | https://biblehub.com/text/job/26-12.htm |
+| Job 27:3 | Retained; source specified | https://biblehub.com/text/job/27-3.htm |
+| Job 29:14 | Rewritten | https://biblehub.com/text/job/29-14.htm |
+| Job 33:6 | Retained; source specified | https://biblehub.com/text/job/33-6.htm |
+| Job 35:10 | Retained; source specified | https://biblehub.com/text/job/35-10.htm |
+| Job 37:16 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=37&verse=16 |
+| Job 38:7 | Retained; source specified | https://biblehub.com/text/job/38-7.htm |
+| Job 40:4 | Retained; source specified | https://biblehub.com/text/job/40-4.htm |
+| Job 41:34 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Job&chapter=41&verse=34 |
+
+Resume: Psalms original_language.
