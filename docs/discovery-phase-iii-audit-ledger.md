@@ -1098,3 +1098,28 @@ Resume: Numbers ancient_culture.
 | Numbers 15:38 | Retained; source checked | https://www.sefaria.org/Numbers.15.38-40?lang2=en&with=Halakhah ; https://jewishmuseum.org.uk/schools/asset/tallit-katan/ |
 
 Resume: Numbers 16:38 onwards, remaining unmarked ancient culture.
+
+## Batch 54 — Numbers ancient culture, part 2
+
+16 first-pass source checks; four rewritten, including textual uncertainty about place names. Numbers 28/28. Ancient culture cumulative 110/850. Biblical texts support the ritual and legal descriptions; broader historical generalizations still require independent material-culture corroboration.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Numbers 16:38 | Retained; source checked | https://biblia.com/bible/gs-netbible/numbers/16/38-40 |
+| Numbers 19:9 | Retained; source checked | https://www.biblegateway.com/passage/?search=Hebrews+9%3A13%2CNumbers+19%3A9&version=NIV%3BNKJV |
+| Numbers 19:15 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Num&chapter=19&theme=false&verse=15 |
+| Numbers 20:14 | Retained; source checked | https://www.biblegateway.com/passage/?search=Numbers+20%3A14-21&version=NET |
+| Numbers 21:17 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=num+21%3A16%2C17%2C18 |
+| Numbers 27:7 | Rewritten | https://www.biblegateway.com/passage/?search=Numbers+27%3A7-11&version=NET |
+| Numbers 28:26 | Retained; source checked | https://bible.usccb.org/bible/numbers/28 |
+| Numbers 29:1 | Retained; source checked | https://bible.usccb.org/bible/numbers/29 |
+| Numbers 30:9 | Retained; source checked | https://www.biblegateway.com/passage/?search=Numbers+30&version=NIV%3BNET |
+| Numbers 31:21 | Rewritten | https://www.biblegateway.com/passage/?search=Numbers+31%3A21-23&version=NET |
+| Numbers 31:50 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Num&chapter=31&tab=commentaries&theme=false&verse=50 |
+| Numbers 32:1 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Num&chapter=32&verse=1 |
+| Numbers 32:38 | Rewritten | https://bible.usccb.org/bible/numbers/32 |
+| Numbers 34:6 | Retained; source checked | https://bible.usccb.org/bible/numbers/34 |
+| Numbers 35:30 | Rewritten | https://bible.usccb.org/bible/numbers/35 |
+| Numbers 36:6 | Retained; source checked | https://bible.usccb.org/bible/numbers/36 |
+
+Resume: Deuteronomy ancient culture.
