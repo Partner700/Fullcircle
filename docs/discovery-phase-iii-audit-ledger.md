@@ -1422,3 +1422,41 @@ Resume: Ezra ancient culture.
 | Nehemiah 13:5 | Retained | https://www.biblegateway.com/passage/?search=Nehemiah+13&version=NET ; https://tips.translation.bible/story/translation-commentary-on-nehemiah-135/ |
 
 Resume: Job ancient culture.
+
+## Batch 63 — Job ancient culture
+
+29 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 366/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Job 2:13 | Retained | https://www.biblegateway.com/passage/?search=Job+2&version=NET ; https://knowledge.uchicago.edu/record/15624/files/2025.07.10.RIDGE.Dissertation.pdf |
+| Job 4:13 | Retained | https://www.biblegateway.com/passage/?search=Job+4&version=NET ; https://api.pageplace.de/preview/DT0400.9783161536311_A27131224/preview-9783161536311_A27131224.pdf |
+| Job 6:6 | Retained | https://www.biblegateway.com/passage/?search=Job+6&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/job.pdf |
+| Job 6:15 | Retained | https://www.biblegateway.com/passage/?search=Job+6&version=NET ; https://git.door43.org/unfoldingWord/en_tn/releases/download/v85/en_tn_18-JOB_v85.pdf |
+| Job 7:6 | Retained | https://www.biblegateway.com/passage/?search=Job+7&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/job.pdf |
+| Job 8:8 | Retained | https://www.biblegateway.com/passage/?search=Job+8&version=NET ; https://bible.armeniancathedral.org/book/tJob_8.htm?wid=3913 |
+| Job 8:11 | Revised | https://www.biblegateway.com/passage/?search=Job+8&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/job.pdf |
+| Job 10:10 | Retained | https://www.biblegateway.com/passage/?search=Job+10&version=NET ; https://www.bible.armeniancathedral.org/book/tJob_10.htm |
+| Job 11:16 | Retained | https://www.biblegateway.com/passage/?search=Job+11&version=NET ; https://www.crcnh.org/downloads/bible-study-tools/bullinger/The-Book-of-Job.pdf |
+| Job 14:7 | Retained | https://www.biblegateway.com/passage/?search=Job+14&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-147/ |
+| Job 16:19 | Retained | https://www.biblegateway.com/passage/?search=Job+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-1619/ |
+| Job 17:3 | Retained | https://www.biblegateway.com/passage/?search=Job+17&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-173/ |
+| Job 18:5 | Retained | https://www.biblegateway.com/passage/?search=Job+18&version=NET ; https://www.peeters-leuven.be/download_OA.php?id=9789042955578&name=Job%27s+Wisdom |
+| Job 20:15 | Retained | https://www.biblegateway.com/passage/?search=Job+20&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-2015/ |
+| Job 21:32 | Retained | https://www.biblegateway.com/passage/?search=Job+21&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-2132-2133/ |
+| Job 22:6 | Retained | https://www.biblegateway.com/passage/?search=Job+22&version=NET ; https://www.amas.hk/pdf/shengjingshenxue/Job%2021-37%20%28Word%20Biblical%20Commentary%20%20WBC%29%20%28David%20J.%20A.%20Clines%29%20%28z-lib.org%29.pdf |
+| Job 23:10 | Retained | https://www.biblegateway.com/passage/?search=Job+23&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-2310/ |
+| Job 24:2 | Retained | https://www.biblegateway.com/passage/?search=Job+24&version=NET ; https://classic.net.bible.org/passage.php?passage=Job+24%3A2 |
+| Job 24:11 | Retained | https://www.biblegateway.com/passage/?search=Job+24&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-2411/ |
+| Job 27:18 | Retained | https://www.biblegateway.com/passage/?search=Job+27&version=NET ; https://tips.translation.bible/story/translation-commentary-on-job-2718/ |
+| Job 28:1 | Retained | https://www.biblegateway.com/passage/?search=Job+28&version=NET ; https://bible.armeniancathedral.org/book/tJob_28.htm?wid=6459 |
+| Job 29:7 | Retained | https://www.biblegateway.com/passage/?search=Job+29&version=NET ; https://ojs.utlib.ee/index.php/UA/article/download/23181/17622/32892 |
+| Job 30:31 | Retained | https://www.biblegateway.com/passage/?search=Job+30&version=NET ; https://tips.translation.bible/tip_verse/job-3031/ |
+| Job 31:35 | Retained | https://www.biblegateway.com/passage/?search=Job+31&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Job&chapter=31&tab=commentaries&verse=35 |
+| Job 32:4 | Retained | https://www.biblegateway.com/passage/?search=Job+32&version=NET ; https://www.sbl-site.org/wp-content/uploads/2025/01/BookofJob_SPP_Gray.pdf |
+| Job 32:19 | Retained | https://www.biblegateway.com/passage/?search=Job+32&version=NET ; https://tips.translation.bible/es/story/translation-commentary-on-job-3219/ |
+| Job 34:3 | Retained | https://www.biblegateway.com/passage/?search=Job+34&version=NET ; https://freely-given.org/OBD/ilr/JOB/C34V3.htm |
+| Job 39:5 | Retained | https://www.biblegateway.com/passage/?search=Job+39&version=NET ; https://tips.translation.bible/tip_verse/job-395/ |
+| Job 42:15 | Retained | https://www.biblegateway.com/passage/?search=Job+42&version=NET ; https://www.joaomordomo.com/files/books/ebooks/Word%20Biblical%20Commentary%20%28WBC%29%20-%20Vol.%2017%20-%20Job%201-20%20-%20Clines.pdf |
+
+Resume: Psalms ancient culture.
