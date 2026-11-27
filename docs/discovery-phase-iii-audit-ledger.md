@@ -1206,3 +1206,40 @@ Resume: Joshua ancient culture. Prior corroboration, other categories, illustrat
 | Joshua 24:26 | Rewritten | https://www.biblegateway.com/passage/?search=Joshua+24&version=NET |
 
 Resume: Judges ancient culture. Remaining categories, independent corroboration, illustration rights and live rendering are open.
+
+## Batch 58 — Judges and Ruth ancient culture
+
+28 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 194/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Judges 3:31 | Revised | https://www.biblegateway.com/passage/?search=Judges+3&version=NET |
+| Judges 4:21 | Retained | https://www.biblegateway.com/passage/?search=Judges+4&version=NET ; https://saintebible.com/bdb/3489.htm |
+| Judges 5:10 | Retained | https://www.biblegateway.com/passage/?search=Judges+5&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=5&theme=false&verse=10 |
+| Judges 5:17 | Retained | https://www.biblegateway.com/passage/?search=Judges+5&version=NET ; https://soniclight.com/tcon/notes/pdf/judges.pdf |
+| Judges 6:11 | Revised | https://www.biblegateway.com/passage/?search=Judges+6&version=NET |
+| Judges 7:13 | Retained | https://www.biblegateway.com/passage/?search=Judges+7&version=NET ; https://www.gospelstudies.org.uk/biblicalstudies/pdf/pulpit-commentary/ot/07_judges_pulpit-commentary.pdf |
+| Judges 7:18 | Retained | https://www.biblegateway.com/passage/?search=Judges+7&version=NET |
+| Judges 7:19 | Revised | https://www.biblegateway.com/passage/?search=Judges+7&version=NET |
+| Judges 8:27 | Retained | https://www.biblegateway.com/passage/?search=Judges+8&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=8&tab=commentaries&verse=27 |
+| Judges 9:6 | Retained | https://www.biblegateway.com/passage/?search=Judges+9&version=NET |
+| Judges 11:3 | Retained | https://www.biblegateway.com/passage/?search=Judges+11&version=NET ; https://www.openbible.com/commentaries/judges/11-3.htm |
+| Judges 12:15 | Retained | https://www.biblegateway.com/passage/?search=Judges+12&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=12&verse=15 |
+| Judges 13:5 | Retained | https://www.biblegateway.com/passage/?search=Judges+13&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/judges/13/5 |
+| Judges 14:12 | Revised | https://www.biblegateway.com/passage/?search=Judges+14&version=NET ; https://soniclight.com/tcon/notes/pdf/judges.pdf |
+| Judges 14:18 | Retained | https://www.biblegateway.com/passage/?search=Judges+14&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=14&tab=commentaries&verse=18 |
+| Judges 16:21 | Retained | https://www.biblegateway.com/passage/?search=Judges+16&version=NET |
+| Judges 16:23 | Retained | https://www.biblegateway.com/passage/?search=Judges+16&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/judges/16/23 |
+| Judges 17:5 | Retained | https://www.biblegateway.com/passage/?search=Judges+17&version=NET ; https://classic.net.bible.org/verse.php?book=Gen&chapter=31&tab=commentaries&verse=19 |
+| Judges 17:10 | Retained | https://www.biblegateway.com/passage/?search=Judges+17&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=17&theme=false&verse=10 |
+| Judges 19:10 | Retained | https://www.biblegateway.com/passage/?search=Judges+19&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/judges/19/10 |
+| Judges 19:15 | Retained | https://www.biblegateway.com/passage/?search=Judges+19&version=NET ; https://evangile21.thegospelcoalition.org/commentary/judges/ |
+| Judges 20:1 | Retained | https://www.biblegateway.com/passage/?search=Judges+20&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=20&tab=commentaries&theme=false&verse=1 |
+| Judges 21:19 | Retained | https://www.biblegateway.com/passage/?search=Judges+21&version=NET ; https://classic.net.bible.org/verse.php?book=Jdg&chapter=21&tab=commentaries&theme=false&verse=19 |
+| Ruth 1:16 | Retained | https://www.biblegateway.com/passage/?search=Ruth+1&version=NET ; https://www.biblegateway.com/passage/?search=Ruth1%3A16-17&version=NET |
+| Ruth 1:22 | Revised | https://www.biblegateway.com/passage/?search=Ruth+1&version=NET ; https://classic.net.bible.org/verse.php?book=Rut&chapter=1&tab=commentaries&theme=false&verse=22 |
+| Ruth 2:7 | Retained | https://www.biblegateway.com/passage/?search=Ruth+2&version=NET ; https://www.anglicancommunion.org/media/253738/2-Ruth.pdf |
+| Ruth 4:7 | Retained | https://www.biblegateway.com/passage/?search=Ruth+4&version=NET ; https://classic.net.bible.org/verse.php?book=Rut&chapter=4&tab=commentaries&theme=false&verse=7 |
+| Ruth 4:9 | Retained | https://www.biblegateway.com/passage/?search=Ruth+4&version=NET ; https://classic.net.bible.org/bible.php/b/d/verse.php?book=Rut&chapter=4&verse=9 |
+
+Resume: 1 Samuel ancient culture.
