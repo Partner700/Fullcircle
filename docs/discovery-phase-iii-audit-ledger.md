@@ -1563,3 +1563,65 @@ Resume: Psalms ancient culture.
 | Psalms 150:3 | Retained | https://www.biblegateway.com/passage/?search=Psalms+150&version=NET ; https://tips.translation.bible/story/translation-commentary-on-psalm-1503-1505/ |
 
 Resume: Proverbs ancient culture.
+
+## Batch 65 — Proverbs through Song of Solomon ancient culture
+
+53 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 513/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Proverbs 1:20 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+1&version=NET ; https://tips.translation.bible/tip_term/sil-translators-notes-on-proverbs-120/ |
+| Proverbs 2:4 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+2&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=2&tab=commentaries&verse=4 |
+| Proverbs 3:9 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+3&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-39/ |
+| Proverbs 5:15 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+5&version=NET ; https://ote-journal.otwsa-otssa.org.za/index.php/journal/article/view/159 |
+| Proverbs 6:1 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+6&version=NET ; https://mail.biblicalstudies.org.uk/pdf/e-books/whybray_r-n/proverbs_new-century-bible_whybray_r-n.pdf |
+| Proverbs 7:3 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+7&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=7&tab=commentaries&theme=false&verse=3 |
+| Proverbs 7:16 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+7&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-716/ |
+| Proverbs 8:34 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+8&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-834/ |
+| Proverbs 10:15 | Revised | https://www.biblegateway.com/passage/?search=Proverbs+10&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=10&tab=commentaries&verse=15 |
+| Proverbs 11:1 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+11&version=NET ; https://classic.net.bible.org/passage.php/o/w/passage.php?passage=Pro+11%3A1%3B20%3A10 |
+| Proverbs 11:22 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+11&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=11&tab=commentaries&verse=22 |
+| Proverbs 13:12 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+13&version=NET ; https://www.thegospelcoalition.org/commentary/proverbs/ |
+| Proverbs 14:4 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+14&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-144/ |
+| Proverbs 15:17 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+15&version=NET ; https://tips.translation.bible/tip_term/sil-translators-notes-on-proverbs-1517/ |
+| Proverbs 16:11 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+16&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/whybray_r-n/proverbs_new-century-bible_whybray_r-n.pdf |
+| Proverbs 16:33 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-1633/ |
+| Proverbs 17:1 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+17&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=17&tab=commentaries&theme=false&verse=1 |
+| Proverbs 17:3 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+17&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=17&tab=commentaries&verse=3 |
+| Proverbs 18:16 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+18&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=18&tab=commentaries&theme=wiki&verse=16 |
+| Proverbs 18:17 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+18&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=18&tab=commentaries&verse=17 |
+| Proverbs 19:14 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+19&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-proverbs-1914/ |
+| Proverbs 20:10 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+20&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-2010/ |
+| Proverbs 21:1 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+21&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/whybray_r-n/proverbs_new-century-bible_whybray_r-n.pdf |
+| Proverbs 21:9 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+21&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-219-2/ |
+| Proverbs 22:28 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+22&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=22&tab=commentaries&verse=28 |
+| Proverbs 23:1 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+23&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/whybray_r-n/proverbs_new-century-bible_whybray_r-n.pdf |
+| Proverbs 24:13 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+24&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-2413/ |
+| Proverbs 24:30 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+24&version=NET ; https://biblehub.com/commentaries/proverbs/24-30.htm |
+| Proverbs 26:17 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+26&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-2617/ |
+| Proverbs 27:17 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+27&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-2717/ |
+| Proverbs 27:23 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+27&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-proverbs-2723/ |
+| Proverbs 28:8 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+28&version=NET ; https://tips.translation.bible/story/translation-commentary-on-proverbs-288/ |
+| Proverbs 29:4 | Retained | https://www.biblegateway.com/passage/?search=Proverbs+29&version=NET ; https://classic.net.bible.org/verse.php?book=Pro&chapter=29&tab=commentaries&theme=false&verse=4 |
+| Ecclesiastes 4:9 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+4&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/e-books/whybray_r-n/ecclesiastes_new-century-bible_whybray.pdf |
+| Ecclesiastes 5:1 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+5&version=NET ; https://classic.net.bible.org/verse.php?book=ecc&chapter=5&verse=1 |
+| Ecclesiastes 7:4 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+7&version=NET ; https://dbts.edu/wp-content/uploads/2025/06/The-House-of-Feasting-and-the-House-of-Mourning-by-Kyle-C-Dunham.pdf |
+| Ecclesiastes 7:6 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+7&version=NET ; https://classic.net.bible.org/verse.php?book=Ecc&chapter=7&tab=commentaries&verse=6 |
+| Ecclesiastes 9:8 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+9&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-ecclesiastes-98/ |
+| Ecclesiastes 10:1 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+10&version=NET ; https://www.ccel.org/ccel/jfb/jfb/JFB21.htm |
+| Ecclesiastes 10:10 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+10&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Ecc&chapter=10&tab=commentaries&verse=10 |
+| Ecclesiastes 11:4 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+11&version=NET ; https://archive.hundewadt.dk/dvd-bible-commentaries/022%20%20Bible%20Commentaries/Keil%20%26%20Delitzsch%27s%20Commentary%20on%20the%20Old%20%20Testament/KD_Ecclesiastes.pdf |
+| Ecclesiastes 12:6 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+12&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ecclesiastes-126/ |
+| Ecclesiastes 12:11 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+12&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/ecc.pdf |
+| Song of Solomon 1:14 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+1&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Sos&chapter=1&tab=commentaries&verse=14 |
+| Song of Solomon 2:15 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+2&version=NET ; https://faculty.washington.edu/snoegel/PDFs/articles/Song%20of%20Songs%20Translation.pdf |
+| Song of Solomon 3:6 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+3&version=NET ; https://classic.net.bible.org/passage.php?passage=Sos+3%3A6 |
+| Song of Solomon 3:9 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+3&version=NET ; https://classic.net.bible.org/passage.php/b/o/passage.php?passage=Sos+3%3A9-10 |
+| Song of Solomon 4:3 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+4&version=NET ; https://www.openbible.com/commentaries/songs/4-3.htm |
+| Song of Solomon 5:3 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+5&version=NET ; https://cdn.door43.org/en/tn/v27/pdf/en_tn_22-SNG_v27.pdf |
+| Song of Solomon 6:4 | Revised | https://www.biblegateway.com/passage/?search=Song+of+Solomon+6&version=NET ; https://www.studylight.org/commentaries/eng/ebc/song-of-solomon-6.html |
+| Song of Solomon 7:5 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+7&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/song-of-solomon/7/5 |
+| Song of Solomon 7:13 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+7&version=NET ; https://classic.net.bible.org/verse.php?book=Sos&chapter=7&tab=commentaries&verse=13 |
+| Song of Solomon 8:11 | Retained | https://www.biblegateway.com/passage/?search=Song+of+Solomon+8&version=NET ; https://classic.net.bible.org/passage.php?passage=sos+8%3A11-12 |
+
+Resume: Isaiah ancient culture.
