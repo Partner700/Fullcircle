@@ -1752,3 +1752,65 @@ Resume: Jeremiah.
 | Lamentations 5:4 | Retained | https://www.biblegateway.com/passage/?search=Lamentations+5&version=NET ; https://tips.translation.bible/story/translation-commentary-on-lamentations-54/ |
 
 Resume: Ezekiel.
+
+## Batch 68 — Ezekiel and Daniel ancient culture
+
+53 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 675/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Ezekiel 1:1 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+1&version=NET ; https://assets.cambridge.org/97805210/97550/excerpt/9780521097550_excerpt.pdf |
+| Ezekiel 2:10 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+2&version=NET ; https://classic.net.bible.org/verse.php?book=Eze&chapter=2&tab=commentaries&theme=wiki&verse=10 |
+| Ezekiel 3:17 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+3&version=NET ; https://tms.edu/wp-content/uploads/2021/09/tmsj7b.pdf |
+| Ezekiel 4:1 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+4&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-41/ |
+| Ezekiel 4:9 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+4&version=NET ; https://bible.org/sites/bible.org/resources/assets/pdf/Utley_13Ezekiel.pdf |
+| Ezekiel 5:1 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+5&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-ezekiel-51/ |
+| Ezekiel 6:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+6&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-63/ |
+| Ezekiel 7:12 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+7&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-712/ |
+| Ezekiel 7:19 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+7&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/pulpit-commentary/ot/26_ezekiel-vol-1_pulpit-commentary_plumptre.pdf |
+| Ezekiel 8:14 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+8&version=NET ; https://www.thegospelcoalition.org/commentary/ezekiel/ |
+| Ezekiel 9:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+9&version=NET ; https://bible.org/sites/bible.org/resources/assets/pdf/Utley_13Ezekiel.pdf |
+| Ezekiel 11:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+11&version=NET ; https://classic.net.bible.org/verse.php?book=Eze&chapter=11&tab=commentaries&theme=false&verse=3 |
+| Ezekiel 12:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+12&version=NET ; https://www.openbible.com/commentaries/ezekiel/12-3.htm |
+| Ezekiel 13:10 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+13&version=NET ; https://etheses.dur.ac.uk/1355/1/1355.pdf |
+| Ezekiel 15:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+15&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-153/ |
+| Ezekiel 16:4 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+16&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-164/ |
+| Ezekiel 17:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+17&version=NET ; https://www.truthaccordingtoscripture.com/commentaries/ebc/ezekiel-17.php |
+| Ezekiel 18:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+18&version=NET ; https://uex.dk/archive/bible-study-material/dvd-the-bibles-fight-to-live/003%20Text/004%20Bible%20Commentaries/Bible%20Commentaries/Robert%20Jamiesons%20Commentary%20on%20the%20Whole%20Bible/JFB_Ezekiel.pdf |
+| Ezekiel 18:13 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+18&version=NET ; https://kjvstudy.kennethreitz.org/book/Ezekiel/chapter/18 |
+| Ezekiel 19:9 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+19&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-199/ |
+| Ezekiel 21:21 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+21&version=NET ; https://www.bibliaplus.org/en/commentaries/66/ellicotts-commentary-on-the-whole-bible/ezekiel/21/21 |
+| Ezekiel 21:26 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+21&version=NET ; https://www.thegospelcoalition.org/commentary/ezekiel/ |
+| Ezekiel 22:18 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+22&version=NET ; https://lemma.gebible.app/v/ezekiel/22/18 |
+| Ezekiel 23:14 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+23&version=NET ; https://new.bible.org/seriespage/ezekiel-23 |
+| Ezekiel 24:17 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+24&version=NET ; https://classic.net.bible.org/verse.php?book=Eze&chapter=24&tab=commentaries&verse=17 |
+| Ezekiel 25:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+25&version=NET ; https://www.sbl-site.org/assets/pdfs/pubs/9780884141808_OA.pdf |
+| Ezekiel 26:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+26&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-262/ |
+| Ezekiel 26:5 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+26&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-265/ |
+| Ezekiel 27:5 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+27&version=NET ; https://www.sbl-site.org/assets/pdfs/pubs/9780884141808_OA.pdf |
+| Ezekiel 27:12 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+27&version=NET ; https://luna.dbs.org/bibles/ENGT4T/pdf/books/EZK.pdf |
+| Ezekiel 29:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+29&version=NET ; https://www.sbl-site.org/assets/pdfs/pubs/9780884141808_oa.pdf |
+| Ezekiel 30:5 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+30&version=NET ; https://www.sbl-site.org/wp-content/uploads/2024/12/9780884141808_OA.pdf |
+| Ezekiel 30:13 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+30&version=NET ; https://biblicalstudies.org.uk/pdf/pulpit-commentary/ot/26_ezekiel-vol-2_pulpit-commentary_plumptre.pdf |
+| Ezekiel 31:3 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+31&version=NET ; https://classic.net.bible.org/bible.php/b/o/d/verse.php?book=Eze&chapter=31&verse=3 |
+| Ezekiel 33:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+33&version=NET ; https://bible.org/seriespage/ezekiel-33 |
+| Ezekiel 33:32 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+33&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-ezekiel-3332/ |
+| Ezekiel 34:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+34&version=NET ; https://repository.mdx.ac.uk/download/fe4d79dfaf52405bbedb10cb5cac2d5cc3d64e64002d81b8da7eb53a64132c4b/1707544/GMKarakey%20thesis.pdf |
+| Ezekiel 35:2 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+35&version=NET ; https://www.openbible.com/commentaries/ezekiel/35-2.htm |
+| Ezekiel 38:13 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+38&version=NET ; https://tips.translation.bible/story/translation-commentary-on-ezekiel-3813/ |
+| Ezekiel 40:5 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+40&version=NET ; https://classic.net.bible.org/bible.php/b/o/d/verse.php?book=Eze&chapter=40&verse=5 |
+| Ezekiel 41:4 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+41&version=NET ; https://www.biblegateway.com/verse/en/Ezekiel%2041%3A4 |
+| Ezekiel 41:18 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+41&version=NET ; https://luna.dbs.org/bibles/ENGFBV/pdf/books/EZK.pdf |
+| Ezekiel 42:14 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+42&version=NET ; https://luna.dbs.org/bibles/ENGT4T/pdf/books/EZK.pdf |
+| Ezekiel 44:15 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+44&version=NET ; https://www.openbible.com/commentaries/ezekiel/44-15.htm |
+| Ezekiel 45:10 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+45&version=NET ; https://luna.dbs.org/bibles/ENGFBV/pdf/books/EZK.pdf |
+| Ezekiel 46:1 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+46&version=NET ; https://www.bibliaplus.org/en/commentaries/254/cambridge-bible-for-schools-and-colleges/ezekiel/46/1-7 |
+| Ezekiel 47:9 | Retained | https://www.biblegateway.com/passage/?search=Ezekiel+47&version=NET ; https://luna.dbs.org/bibles/ENGFBV/pdf/books/EZK.pdf |
+| Daniel 1:5 | Retained | https://www.biblegateway.com/passage/?search=Daniel+1&version=NET ; https://classic.net.bible.org/verse.php?book=Dan&chapter=1&theme=wiki&verse=5 |
+| Daniel 2:48 | Retained | https://www.biblegateway.com/passage/?search=Daniel+2&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/driver_s-r/daniel_driver.pdf |
+| Daniel 6:10 | Retained | https://www.biblegateway.com/passage/?search=Daniel+6&version=NET ; https://paultanner.org/English%20Docs/Daniel/Commentary/Dan%20Comm%20for%20BEE_P%20Tanner_Ver%201.15_8.4.2017.pdf |
+| Daniel 8:2 | Retained | https://www.biblegateway.com/passage/?search=Daniel+8&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Dan&chapter=8&verse=2 |
+| Daniel 10:5 | Retained | https://www.biblegateway.com/passage/?search=Daniel+10&version=NET ; https://biblehub.com/commentaries/cambridge/daniel/10.htm |
+| Daniel 11:5 | Retained | https://www.biblegateway.com/passage/?search=Daniel+11&version=NET ; https://www.daniel11prophecy.com/uploads/1/1/3/7/113721993/yoder_-_daniel_commentary_1c_1.pdf |
+
+Resume: Hosea.
