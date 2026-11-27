@@ -2706,3 +2706,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 2 Chronicles 33:13 | Retained | https://bible.usccb.org/bible/2chronicles/33; Chronicles chapter and prayer notices retrieved; Kings and standalone prayer identification require further comparison. |
 | 2 Chronicles 35:15 | Revised | https://bible.usccb.org/bible/2chronicles/35; Chronicles 35:14–16 retrieved; 1 Chronicles 25–26 cross-reference pending. |
 | 2 Chronicles 36:21 | Retained | https://bible.usccb.org/bible/2chronicles/36; Chapter retrieved; Leviticus and Jeremiah passages not separately retrieved. |
+
+
+## Batch 97 — Textual connections: 2 Chronicles 7:1 through 2 Samuel 1:18
+
+20 first-pass editorial reviews; 18 source-note updates, four substantive rewrites. Two entries retained unchanged pending source retrieval. All 20 rows read back; 18 updated notes and four revised facts inspected. Independent secondary passage and scholarly corroboration remain incomplete as recorded. No illustration or production certification.
+
+| Reference | Verdict | Retrieved sources / limitations |
+|---|---|---|
+| 2 Chronicles 7:1 | Retained | https://www.biblegateway.com/passage/?search=Leviticus+9%3A24%2C1+Chronicles+21%3A26%2C2+Chronicles+7%3A1&version=NRSVUE; Phase III: Comparative excerpt retrieved. |
+| 2 Chronicles 8:14 | Retained | https://bible.usccb.org/bible/2chronicles/8; Phase III: Chronicles excerpt; David's earlier arrangements pending. |
+| 2 Corinthians 1:3 | Retained | https://bible.usccb.org/bible/2corinthians/1; Phase III: Chapter retrieved; Psalm comparison pending. |
+| 2 Corinthians 10:17 | Retained | https://bible.usccb.org/bible/2corinthians/10; Phase III: Verses 17–18 retrieved; Jeremiah primary passage pending. |
+| 2 Corinthians 12:14 | Revised | https://bible.usccb.org/bible/2corinthians/12; Phase III: Verses 14–18 retrieved; 1 Corinthians comparison pending. |
+| 2 Corinthians 13:1 | Pending source check | No new source; chapter retrieval blocked; comparative check pending. |
+| 2 Corinthians 3:7 | Retained | https://www.biblegateway.com/passage/?search=Hebrews+8%3A10%2CEzekiel+36%3A26-28%2CJeremiah+31%3A33%2C2+Corinthians+3%3A3%2CEzekiel+11%3A19-20&version=NIV%3BNKJV%3BESV%3BNASB; Phase III: Comparative excerpt for verse 3; Exodus and verse 7 context pending. |
+| 2 Corinthians 4:6 | Retained | https://bible.usccb.org/bible/2corinthians/4; Phase III: Verse and NABRE note retrieved; Genesis primary text pending. |
+| 2 Corinthians 6:16 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+6%3A16%3B+Ezekiel+37%3A27%3B+Leviticus+26%3A12&version=NIV%3BKJV; Phase III: Comparative cross-reference excerpt retrieved. |
+| 2 Corinthians 6:2 | Revised | https://bible.usccb.org/bible/2corinthians/6; Phase III: Verse and NABRE note retrieved; Isaiah primary text pending. |
+| 2 Corinthians 8:15 | Revised | https://bible.usccb.org/bible/2corinthians/8; Phase III: Verses 12–15 and manna note retrieved; Exodus primary text pending. |
+| 2 Corinthians 9:9 | Retained | https://bible.usccb.org/bible/2corinthians/9; Phase III: Verses 6–10 retrieved; Psalm primary text pending. |
+| 2 Kings 13:14 | Pending source check | No new source; chapter retrieval blocked; comparative check pending. |
+| 2 Kings 14:6 | Retained | https://bible.usccb.org/bible/2kings/14; Phase III: Verse explicitly quotes Mosaic law; Deuteronomy primary text pending. |
+| 2 Kings 15:5 | Retained | https://www.biblegateway.com/passage/?search=2+Kings+15%3A5%3B+2+Chronicles+26%3A21; Phase III: Comparative result retrieved; alternate name context pending. |
+| 2 Kings 23:22 | Retained | https://bible.usccb.org/bible/2kings/23; Phase III: Verses 21–23 retrieved; Chronicles parallel pending. |
+| 2 Peter 1:16 | Retained | https://bible.usccb.org/bible/2peter/1; Phase III: Verses 16–21 retrieved; Gospel parallel pending. |
+| 2 Peter 2:22 | Revised | https://bible.usccb.org/bible/2peter/2; Phase III: Verse and NABRE note retrieved; Proverbs primary text pending. |
+| 2 Peter 3:8 | Retained | https://bible.usccb.org/bible/2peter/3; Phase III: Verses 8–9 retrieved; Psalm primary text pending. |
+| 2 Samuel 1:18 | Retained | https://bible.usccb.org/bible/2samuel/1; Phase III: Verses 17–18 retrieved; Joshua and manuscript history pending. |
