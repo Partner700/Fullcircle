@@ -890,3 +890,25 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Leviticus 18:21 | Rewritten | https://classic.net.bible.org/verse.php?book=Lev&chapter=18&verse=21 |
 | Luke 24:13 | Rewritten | https://classic.net.bible.org/verse.php?book=Luk&chapter=24&verse=13 |
 | Mark 16:8 | Rewritten | https://classic.net.bible.org/verse.php?book=Mar&chapter=16&verse=9 |
+
+## Batch 45 — Scholarly debate, part 6
+
+15 entries revised and re-queried. Cumulative 86/110. Recovered the three previously inaccessible Job, Joshua and Luke sources. Nehemiah 8:8 remains pending.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Job 39:13 | Rewritten | https://www.biblegateway.com/passage/?search=Job.39.13&version=NET |
+| Joshua 2:15 | Rewritten | https://bible.usccb.org/bible/joshua/2 ; https://classic.net.bible.org/verse.php?book=Jos&chapter=2&tab=commentaries&verse=15 |
+| Luke 17:21 | Rewritten | https://www.biblegateway.com/passage/?search=Luke+17%3A21&version=NET%3BNIV |
+| Mark 2:26 | Rewritten | https://bible.org/article/mark-226-and-problem-abiathar |
+| Matthew 5:44 | Rewritten | https://www.biblegateway.com/passage/?search=Matthew+5%3A43-45&version=NET |
+| Nahum 2:6 | Rewritten | https://classic.net.bible.org/verse.php?book=Nah&chapter=2&verse=6 |
+| Nehemiah 4:23 | Rewritten | https://classic.net.bible.org/verse.php?book=Neh&chapter=4&verse=23 |
+| Nehemiah 6:3 | Rewritten | https://www.biblegateway.com/passage/?search=Nehemiah+6%3A1-2&version=NET%3BNIV |
+| Numbers 12:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Num&chapter=12&verse=1 |
+| Numbers 3:39 | Rewritten | https://classic.net.bible.org/verse.php?book=Num&chapter=3&verse=39 |
+| Philippians 1:13 | Rewritten | https://classic.net.bible.org/verse.php?book=Phi&chapter=1&verse=13 |
+| Proverbs 22:17 | Rewritten | https://www.cambridge.org/core/books/abs/book-of-proverbs-in-social-and-theological-context/social-contexts-in-proverbs-22173131/2252D8D658419FB8D65429F8C619A03B ; https://napocaroots.reviste.ubbcluj.ro/index.php/roots/article/view/83 |
+| Proverbs 25:11 | Rewritten | https://classic.net.bible.org/passage.php?passage=Pro+25%3A11%2C12 |
+| Proverbs 30:1 | Rewritten | https://classic.net.bible.org/verse.php?book=Pro&chapter=30&theme=wiki&verse=1 |
+| Proverbs 8:22 | Rewritten | https://classic.net.bible.org/passage.php?passage=Pro+8%3A22%2C23 |
