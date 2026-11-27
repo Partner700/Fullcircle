@@ -2354,3 +2354,31 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Isaiah 32:15 | Retained | https://bible.usccb.org/bible/isaiah/32 |
 | Isaiah 33:15 | Retained | https://bible.usccb.org/bible/isaiah/33 |
 | Isaiah 46:4 | Revised | https://bible.usccb.org/bible/isaiah/46 |
+
+
+## Batch 84 — Scripture detail: Isaiah through Job 17
+
+20 first-pass editorial reviews; five substantive rewrites. Published chapter texts and verse search excerpts retrieved for 16 rows, with four explicitly flagged for further primary-text retrieval. Several sources returned 403 or cache errors. Cross-references and independent historical corroboration remain outstanding where not retrieved. All 20 live rows separately read back; source-note persistence is not equivalent to external source certification. No new illustration or rendering certification.
+
+| Reference | Verdict | Source / retrieval status |
+|---|---|---|
+| Isaiah 57:5 | Retained | https://bible.usccb.org/bible/isaiah/57; primary text or excerpt consulted |
+| Isaiah 9:2 | Revised | https://www.biblegateway.com/passage/?search=Isaiah+9%3A1-2%2CMatthew+4%3A12-16&version=NIV; primary text or excerpt consulted |
+| James 4:13 | Retained | https://www.biblegateway.com/passage/?search=James+4%3A13-15&version=NET%3BNIV; primary text or excerpt consulted |
+| James 5:17 | Retained | https://www.biblegateway.com/passage/?search=Luke+4%3A25%2CJames+5%3A17&version=NIV; primary text or excerpt consulted |
+| Jeremiah 14:14 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+5%3A31%2CJeremiah+14%3A14%2CJeremiah+20%3A6%2CJeremiah+23%3A32%2CJeremiah+27%3A10&version=NASB%3BNIV; retrieval incomplete |
+| Jeremiah 21:2 | Retained | https://bible.usccb.org/bible/jeremiah/21 ; https://www.biblegateway.com/passage/?search=Jeremiah+20-23&version=ESV; primary text or excerpt consulted |
+| Jeremiah 23:16 | Revised | https://www.biblegateway.com/passage/?search=Jeremiah+23%3A16&version=NET%3BNIV%3BKJV%3BNKJV; primary text or excerpt consulted |
+| Jeremiah 24:2 | Revised | https://bible.usccb.org/bible/jeremiah/24; primary text or excerpt consulted |
+| Jeremiah 26:24 | Retained | https://bible.usccb.org/bible/jeremiah/26; primary text or excerpt consulted |
+| Jeremiah 27:7 | Revised | https://bible.usccb.org/bible/jeremiah/27; primary text or excerpt consulted |
+| Jeremiah 28:1 | Retained | https://classic.net.bible.org/verse.php?book=Jer&chapter=28&verse=1 ; https://www.biblegateway.com/passage/?search=Jeremiah+28%3A1-9&version=NIV; primary text or excerpt consulted |
+| Jeremiah 3:16 | Retained | https://www.biblegateway.com/passage/?search=Jeremiah+3%3A16-17&version=NIV; primary text or excerpt consulted |
+| Jeremiah 37:11 | Retained | https://classic.net.bible.org/passage.php?passage=Jer+37%3A5-11 ; https://biblia.com/bible/niv/jeremiah/37/11-12; primary text or excerpt consulted |
+| Jeremiah 42:6 | Retained | https://bible.usccb.org/bible/jeremiah/42; primary text or excerpt consulted |
+| Jeremiah 42:7 | Retained | https://bible.usccb.org/bible/jeremiah/42; primary text or excerpt consulted |
+| Jeremiah 45:1 | Revised | https://bible.usccb.org/bible/jeremiah/45; primary text or excerpt consulted |
+| Job 11:7 | Retained | https://www.biblegateway.com/passage/?search=Job+11%3A7-19&version=NIV; partial excerpt |
+| Job 12:2 | Retained | https://www.biblegateway.com/passage/?search=Job+12%3A1-10&version=NIV; retrieval incomplete |
+| Job 12:7 | Retained | https://www.biblegateway.com/passage/?search=Job+12%3A1-10&version=NIV; retrieval incomplete |
+| Job 17:14 | Retained | https://classic.net.bible.org/verse.php?book=Job&chapter=17&theme=false&verse=14; primary text or excerpt consulted |
