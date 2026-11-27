@@ -29,3 +29,26 @@ All 13 records updated and independently re-queried in Supabase. Primary passage
 ## Resume
 
 Continue Genesis original-language entries excluding the 20 Genesis references listed above. Genesis 13:2, 13:7 and 16:13 were not completed in Batch 11. Finish the remaining Exodus original-language entries, then the remainder of the canon and categories. Keep per-reference source and verdict here; do not mistake link presence for full independent verification. Do not recreate filler. Historical evidence and illustration work has separate earlier checkpoints; re-audit as necessary. Production asset build previously passed; full quality checks and mirror deployment are not yet confirmed.
+
+## Batch 12 — Genesis lexical audit
+
+16 source-reviewed updates confirmed in Supabase.
+
+| Reference | Verdict | Source |
+|---|---|---|
+| Genesis 13:2 | Retained; source specified | https://bible.sabda.org/bible.php?book=1&chapter=13&tab=text |
+| Genesis 13:7 | Rewritten | https://bible.sabda.org/bible.php?book=1&chapter=13&tab=text |
+| Genesis 17:5 | Retained; source specified | https://www.bible.com/bible/107/GEN.17.NET |
+| Genesis 19:22 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Gen+19%3A20%2C22 |
+| Genesis 20:5 | Retained; source specified | https://www.bible.com/bible/107/GEN.20.NET |
+| Genesis 21:1 | Retained; source specified | https://study.bible.org/byverse/Genesis%2B21 |
+| Genesis 21:6 | Retained; source specified | https://classic.net.bible.org/verse.php?book=Gen&chapter=21&verse=6 |
+| Genesis 25:30 | Retained; source specified | https://classic.net.bible.org/bible.php/d/bible.php?book=Gen&chapter=25 |
+| Genesis 26:21 | Retained; source specified | https://www.bible.com/bible/107/GEN.26.NET |
+| Genesis 27:36 | Retained; source specified | https://www.bible.com/bible/107/GEN.27.NET |
+| Genesis 28:12 | Retained; source specified | https://classic.net.bible.org/verse.php/verse.php?book=Gen&chapter=28&tab=commentaries&verse=12 |
+| Genesis 28:19 | Retained; source specified | https://classic.net.bible.org/passage.php/passage.php?passage=Gen+28%3A12-22 |
+| Genesis 29:35 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Gen+29%3A31--30%3A24&theme=false |
+| Genesis 30:24 | Retained; source specified | https://classic.net.bible.org/passage.php?passage=Gen+29%3A31--30%3A24&theme=false |
+| Genesis 31:47 | Retained; source specified | https://www.biblegateway.com/passage/?search=Genesis+31%3A47-49&version=NET |
+| Genesis 31:49 | Rewritten | https://www.biblegateway.com/passage/?search=Genesis+31%3A47-49&version=NET |
