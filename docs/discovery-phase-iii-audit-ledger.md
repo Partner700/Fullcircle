@@ -2022,3 +2022,71 @@ Resume: reconcile the ancient-culture ledger against the live reference set.
 A two-way set comparison matched the 850 distinct references in batches 48–71 against all 850 live `ancient_culture` references. Missing live references: 0. Extra ledger references: 0. Batches 58–71 covered the final 684 entries. Each batch re-read the resulting fact and source note. This milestone covers the first pass; it does not certify independent historical corroboration for every claim.
 
 Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `scripture_detail` and `textual_connection` reviews, prior corroboration caveats, semantic duplication, licensed visuals, and both production reading surfaces.
+
+## Batch 72 — Earliest evidence
+
+61/61 first-pass reviews. The objects, inscriptions and literary witnesses provide different types of evidence. No claim of earliest attestation follows from the category name. Separate database reads verified all 61 final facts and notes.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| 1 Chronicles 5:26 | Retained | https://www.cambridge.org/core/books/abs/cambridge-ancient-history/israel-and-judah-from-the-coming-of-assyrian-domination-until-the-fall-of-samaria-and-the-struggle-for-independence-in-judah-c-750700-bc/081D924090C5425BA970C22AF2C10D97 ; https://www.cambridge.org/core/books/cambridge-ancient-history/05CDFBF81241560291F4FC5FD169FA5E/listing?pageNum=2 |
+| 1 Kings 14:25 | Retained | https://digitalkarnak.ucsc.edu/bubastite-portal/ ; https://www.cambridge.org/core/elements/ancient-israel-and-ancient-egypt/DA6C56C4AD4EFDED08E296AB2699BBAA |
+| 1 Kings 16:23 | Retained | https://collections.louvre.fr/en/ark%3A/53355/cl010120339 ; rewritten summary of https://collections.louvre.fr/en/ark:/53355/cl010120339 ; https://www.sbl-site.org/wp-content/uploads/2024/12/9781628375121.pdf |
+| 1 Kings 16:29 | Retained | https://jewishvirtuallibrary.org/karkar ; https://fontes.page/texts/akkadian-shalmaneser-iii/ |
+| 1 Kings 22:39 | Retained | https://www.iaw.unibe.ch/research/ancient_near_eastern_archaeology/the_ivory_carvings_from_samaria/index_eng.html |
+| 1 Samuel 16:7 | Retained | https://thejewishmuseum.org/exhibitions/tel-dan-stele/ ; https://www.aup-online.com/content/journals/10.5117/NTT1995.49.002.BECK |
+| 2 Chronicles 12:2 | Retained | https://digitalkarnak.ucsc.edu/bubastite-portal/ ; https://www.sbl-site.org/wp-content/uploads/2024/12/9781628375121.pdf |
+| 2 Chronicles 3:17 | Retained | https://www.mdpi.com/2077-1444/10/3/198 |
+| 2 Chronicles 32:3 | Retained | https://academic.oup.com/book/10620/chapter/158618391 ; rewritten summary of https://oup.silverchair-cdn.com/book-minimal/10620/chapter-minimal/158618391 ; https://academic.oup.com/book/10620/chapter/158618391 |
+| 2 Chronicles 33:11 | Retained | https://api.pageplace.de/preview/DT0400.9780190261177_A40612172/preview-9780190261177_A40612172.pdf |
+| 2 Chronicles 36:23 | Retained | https://artsandculture.google.com/asset/cyrus-cylinder/4wHjbQnYhZgzVQ?hl=en |
+| 2 Corinthians 11:32 | Retained | https://academic.oup.com/edited-volume/61673/chapter-abstract/548508969 |
+| 2 Kings 15:19 | Retained | https://www.cambridge.org/core/books/abs/cambridge-ancient-history/israel-and-judah-from-the-coming-of-assyrian-domination-until-the-fall-of-samaria-and-the-struggle-for-independence-in-judah-c-750700-bc/081D924090C5425BA970C22AF2C10D97 ; https://www.cristoraul.org/ENGLISH/readinghall/THIRDMILLENNIUMLIBRARY/ANCIENT-HISTORY/CAH/The-Cambridge-Ancient-History-3-2.pdf |
+| 2 Kings 17:6 | Retained | https://www.sbl-site.org/wp-content/uploads/2024/12/KingdomIsrael_Schoors_SBL.pdf |
+| 2 Kings 18:13 | Retained | https://artsandculture.google.com/asset/lachish-relief-stone-panel-from-the-south-west-palace-of-sennacherib-room-36-no-10/IgGFNwW6IBZBEg ; https://www.britishmuseum.org/sites/default/files/2019-09/Arab_World_Resource_Web.pdf |
+| 2 Kings 18:14 | Retained | https://oracc.museum.upenn.edu/rinap/rinap3/Q003496 |
+| 2 Kings 19:37 | Retained | https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-1-from-nabu-nasir-to-samas-suma-ukin/abc-1.iii/ ; https://epub.ub.uni-muenchen.de/31824/1/Grayson_Novotny_RINAP_3_2.pdf |
+| 2 Kings 20:20 | Retained | https://www.posenlibrary.com/entry/siloam-inscription ; https://www.livius.org/sources/content/anet/321-the-siloam-inscription/ |
+| 2 Kings 24:12 | Retained | https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-5-jerusalem-chronicle/ |
+| 2 Kings 25:30 | Retained | https://cojs.org/babylonian_ration_list-_king_jehoiakhin_in_exile-_592-1_bce/ ; https://bibleinterp.arizona.edu/articles/exile357917 |
+| 2 Kings 3:4 | Retained | https://collections.louvre.fr/en/ark%3A/53355/cl010120339 ; rewritten summary of https://collections.louvre.fr/en/ark:/53355/cl010120339 ; https://www.cambridge.org/core/services/aop-cambridge-core/content/view/A918A2780D0A62694EB75C4C152D1D6C/9781009547840AR.pdf/Against_Moab.pdf?event-type=FTLA |
+| 2 Kings 9:6 | Retained | https://oracc.museum.upenn.edu/nimrud/livesofobjects/blackobelisk/ |
+| Acts 18:12 | Retained | https://www.uecf.net/books/introduction-to-the-new-testament/chapter157.html |
+| Acts 21:28 | Retained | https://classic.net.bible.org/passage.php?passage=Act+21%3A28-30 ; rewritten summary of https://classic.net.bible.org/passage.php?passage=Act+21:28-30 ; https://artsandculture.google.com/asset/no-foreigner-shall-enter-greek-inscription-forbidding-entry-to-the-temple-unknown/KAG6mO4plErdgw?hl=en |
+| Acts 23:8 | Retained | https://penelope.uchicago.edu/Josephus/ant-18.html ; https://doi.org/10.1093/jts/flag032 |
+| Acts 24:27 | Retained | https://adfonteslibrary.org/work-st-josephus-antiquities-20 ; https://classic.net.bible.org/passage.php?mode=print&passage=Act+24%3A27--25%3A1 |
+| Amos 3:15 | Revised | https://www.iaw.unibe.ch/forschung/vorderasiatische_archaeologie/the_ivory_carvings_from_samaria/index_ger.html ; https://www.iaw.unibe.ch/research/ancient_near_eastern_archaeology/the_ivory_carvings_from_samaria/index_eng.html |
+| Daniel 5:1 | Retained | https://artsandculture.google.com/asset/cylinder-of-nabonidus/jAHdrtpI35v9UA?hl=en ; https://babylonian-collection.yale.edu/sites/default/files/files/YNER%2010%20-%20Beaulieu%20-%20The%20Reign%20of%20Nabonidus%20King%20of%20Babylon%20556-549%20BC%20%281989%29.pdf |
+| Esther 1:1 | Retained | https://www.iranicaonline.org/articles/esther-book-of/ ; https://www.iranicaonline.org/articles/ahasureus/ |
+| Exodus 1:14 | Retained | https://www.metmuseum.org/art/collection/search/544649 ; https://www.artheonmuseum.org/artwork/brickmakers-tomb-of-rekhmire-544649 |
+| Exodus 38:8 | Retained | https://www.metmuseum.org/art/collection/search/546893 |
+| Genesis 11:4 | Retained | https://www.metmuseum.org/de/essays/ur-the-ziggurat |
+| Genesis 38:18 | Retained | https://www.metmuseum.org/art/collection/search/327283 ; https://publications.asia.si.edu/seals/about.php |
+| Genesis 41:14 | Retained | https://www.metmuseum.org/art/collection/search/547606 |
+| Haggai 1:1 | Retained | https://livrepository.liverpool.ac.uk/3174769/1/458920.pdf |
+| Isaiah 1:1 | Retained | https://museum.imj.org.il/pdf/dss-english.pdf |
+| Isaiah 1:18 | Retained | https://cris.huji.ac.il/en/publications/early-evidence-of-an-archaeological-dyed-textile-using-scale-inse/ |
+| Isaiah 20:1 | Retained | https://oracc.museum.upenn.edu/rinap/downloads/Frame_RINAP_2.pdf |
+| Isaiah 37:37 | Retained | https://artsandculture.google.com/asset/sennacherib-the-assyrian-lays-siege-to-jerusalem/jQGyPHzdLoU8lw?hl=en ; https://cojs.org/sennacherib-s_siege_of_jerusalem-_once_or_twice-_mordechai_cogan-_bar_27-01-_jan-feb_2001/ |
+| Isaiah 39:1 | Retained | https://onlinelibrary.wiley.com/doi/abs/10.1002/9781444338386.wbeah24137 ; https://oi.uchicago.edu/sites/default/files/uploads/shared/docs/oppenheim_studies.pdf |
+| Jeremiah 25:1 | Retained | https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-5-jerusalem-chronicle/ |
+| Jeremiah 34:7 | Retained | https://artsandculture.google.com/asset/lachish-letter-ii/4QFvFeRkdihmAw?hl=en ; https://aias.org.uk/wp-content/uploads/2017/04/Bulletin%20of%20the%20Anglo-Israel%20Archaeological%20Society%20-%202015%20-%20Volume%2033.pdf |
+| Jeremiah 36:4 | Retained | https://artsandculture.google.com/asset/lachish-letter-ii/4QFvFeRkdihmAw?hl=en ; https://www.cambridge.org/core/elements/ancient-hebrew-inscriptions/26E0DECA312B046780697E72296BF572 |
+| Jeremiah 44:30 | Retained | https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Herodotus/2B%2A.html ; rewritten summary of https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Herodotus/2B*.html ; https://resources.warburg.sas.ac.uk/pdf/hkh75b2477451v1.pdf |
+| Jeremiah 46:2 | Retained | https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-5-jerusalem-chronicle/ ; https://escholarship.org/content/qt8q86391z/qt8q86391z_noSplash_b3d1467302fe134610bd9410227aeba4.pdf?t=lq6r7w |
+| Jeremiah 52:31 | Retained | https://cojs.org/babylonian_ration_list-_king_jehoiakhin_in_exile-_592-1_bce/ |
+| John 11:49 | Retained | https://penelope.uchicago.edu/Josephus/ant-18.html ; https://beta.perseus.tufts.edu/urn%3Acts%3AgreekLit%3Atlg2018.tlg002.1st1K-grc2/section%3A1.13.22/ |
+| John 18:29 | Retained | https://commons.wikimedia.org/wiki/File%3ADedicatory_inscription_found_reused_in_the_staircase_of_the_theatre_of_Caesarea%2C_the_first_and_only_mention_of_Pontius_Pilates%27_name_ever_unearthed%2C_26-36_AD%2C_Israel_Museum%2C_Jerusalem_%2815655925251%29.jpg ; rewritten summary of https://commons.wikimedia.org/wiki/File:Dedicatory_inscription_found_reused_in_the_staircase_of_the_theatre_of_Caesarea,_the_first_and_only_mention_of_Pontius_Pilates'_name_ever_unearthed,_26-36_AD,_Israel_Museum,_Jerusalem_(15655925251).jpg ; https://documents.adventistarchives.org/Periodicals/RH/RH19630530-V140-22.pdf |
+| John 2:20 | Revised | https://penelope.uchicago.edu/josephus/ant-15.html ; https://www.attalus.org/old/aj_15c.html |
+| John 5:2 | Retained | https://www.cambridge.org/core/journals/new-testament-studies/article/pre70-ce-dating-of-the-gospel-of-john-there-is-in-jerusalem-a-pool-which-has-five-porticoes-52/6EB521B72901E535E1BB31A1A1473C94 ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/JohnBaker-Exegetical-Commentary-by-Andreas-Kostenberger-z-lib.org_.pdf |
+| Jonah 1:2 | Retained | https://archeologie.culture.gouv.fr/en/nineveh |
+| Judges 6:32 | Retained | https://biblical-archaeology.org/en/locations/%D7%9B%D7%AA%D7%95%D7%91%D7%AA-%D7%99%D7%A8%D7%95%D7%91%D7%A2%D7%9C/ ; https://jjar.huji.ac.il/sites/default/files/jjar/files/rollston_et_al._2021_jjar_2_1-15.pdf |
+| Mark 13:1 | Retained | https://penelope.uchicago.edu/josephus/war-5.html ; https://onlinelibrary.wiley.com/doi/abs/10.1002/9781118325162.ch15 |
+| Matthew 26:57 | Retained | https://lexundria.com/j_aj/18.33-35/wst ; https://cdn.mohrsiebeck.com/24%2C228e07965d426abb6e6196ea7deab4.pdf |
+| Nahum 3:19 | Retained | https://www.britishmuseum.org/collection/object/W_1896-0409-6 ; https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-3-fall-of-nineveh-chronicle |
+| Nahum 3:7 | Revised | https://www.livius.org/sources/content/mesopotamian-chronicles-content/abc-3-fall-of-nineveh-chronicle/ |
+| Numbers 22:5 | Retained | https://library.biblicalarchaeology.org/sidebar/deir-alla-inscription/ ; https://tile.loc.gov/storage-services/master/gdc/gdcebookspublic/20/18/05/66/09/2018056609/2018056609.pdf |
+| Numbers 6:24 | Revised | https://www.posenlibrary.com/entry/priests-blessing ; https://cojs.org/silver_scroll_amulets_from_ketef_hinnom-_c-_600_bce/ |
+| Numbers 6:25 | Revised | https://cojs.org/silver_scroll_amulets_from_ketef_hinnom-_c-_600_bce/ ; https://cris.tau.ac.il/en/publications/a-new-appraisal-of-the-silver-amulets-from-ketef-hinnom/ |
+| Revelation 3:17 | Retained | https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Tacitus/Annals/14a%2A.html ; rewritten summary of https://penelope.uchicago.edu/Thayer/E/Roman/Texts/Tacitus/Annals/14a*.html ; https://uir.unisa.ac.za/server/api/core/bitstreams/ae450bec-6cfe-4bbb-97f5-91337225c622/content |
+| Zechariah 1:1 | Retained | https://bible.usccb.org/bible/zechariah/1 ; https://www.sbl-site.org/assets/pdfs/pubs/062607P.front.pdf |
