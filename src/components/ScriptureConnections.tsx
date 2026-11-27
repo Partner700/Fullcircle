@@ -2681,28 +2681,17 @@ for(const [a,b,context,kind] of definedThreads){
   entries.set(destination,{reference:destination,context,kind:reviewedThreadIndex.get(source)?.get(destination) && (kind==='prophecy'||kind==='fulfillment') ? reviewedThreadIndex.get(source)!.get(destination)! : kind});
  }
 }
-export function VerseThreads({reference, links, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
+export function VerseThreads({reference, onNavigate}: {reference:string; links:LinkRow[]|undefined; onNavigate?:Navigate}) {
  const key=threadKey(reference);
- const explained=[...(explainedThreadIndex.get(key)?.values()??[])].slice(0,100);
- const seen=new Set(explained.map(row=>row.reference));
- const reviewed=reviewedThreadIndex.get(key);
- const classified:Array<{reference:string;kind:ThreadType}>=[];
- const include=(destination:string)=>{
-  const target=threadKey(destination);
-  const kind=reviewed?.get(target);
-  if(!kind||seen.has(target)||target===key||explained.length+classified.length>=100)return;
-  seen.add(target);classified.push({reference:target,kind});
- };
- // Rank already-reviewed matches from the chapter asset first, without promoting raw links.
- for(const [destination] of links??[])include(destination);
- for(const destination of reviewed?.keys()??[])include(destination);
- const count=explained.length+classified.length;
+ // Only display passage pairs with a specific, nonempty explanation.
+ // Classified and raw cross-references remain internal research candidates.
+ const explained=[...(explainedThreadIndex.get(key)?.values()??[])].filter(row=>row.context.trim().length>0).slice(0,100);
+ const count=explained.length;
  if(!count)return null;
  return <details className="group my-1 rounded-xl border border-border bg-surface/80">
  <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-xs font-bold text-brass [&::-webkit-details-marker]:hidden"><GitBranch size={16}/> Threads <span>{count}</span><ChevronDown size={14} className="ml-auto transition-transform group-open:rotate-180"/></summary>
  <div className="space-y-3 border-t border-border p-3">
  {explained.map(row=><div key={row.reference} className="space-y-1"><p className="text-sm leading-relaxed text-ink">{row.context}</p><PassageLink reference={row.reference} kind={row.kind} onNavigate={onNavigate}/></div>)}
- {classified.length>0&&<details className="rounded-lg border border-border p-2"><summary className="cursor-pointer text-xs font-semibold text-stone">Classified connections · {classified.length} awaiting explanation</summary><div className="mt-2 space-y-2"><p className="text-xs text-stone">These passage pairs have been classified; their individual explanations are still being reviewed.</p>{classified.map(row=><PassageLink key={row.reference} reference={row.reference} kind={row.kind} onNavigate={onNavigate}/>)}</div></details>}
  </div>
  </details>;
 }
