@@ -1022,3 +1022,25 @@ Resume: Exodus ancient_culture.
 | Exodus 22:12 | Retained; source checked | https://bible.usccb.org/bible/exodus/22 |
 
 Resume: remaining Exodus ancient_culture rows.
+
+## Batch 51 — Remaining Exodus ancient culture
+
+13 entries checked against retrieved biblical texts and notes; one rewritten to quantify the textile layers, twelve retained with supplementary sources. Exodus 28/28 first pass. Ancient culture cumulative 58/850. Independent material-culture corroboration remains outstanding for broad claims not established by biblical text alone.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Exodus 22:26 | Retained; source checked | https://bible.usccb.org/bible/exodus/22 ; https://bible.usccb.org/bible/deuteronomy/24 |
+| Exodus 23:11 | Retained; source checked | https://bible.usccb.org/bible/exodus/23 ; https://bible.usccb.org/bible/leviticus/25 |
+| Exodus 25:31 | Retained; source checked | https://bible.usccb.org/bible/exodus/25 ; https://bible.usccb.org/bible/exodus/37 |
+| Exodus 26:7 | Rewritten | https://bible.usccb.org/bible/exodus/26 ; https://www.biblegateway.com/passage/?search=Exodus+26%3A7-14&version=NIV |
+| Exodus 27:20 | Retained; source checked | https://bible.usccb.org/bible/exodus/27 ; https://bible.usccb.org/bible/leviticus/24 |
+| Exodus 28:36 | Retained; source checked | https://bible.usccb.org/bible/exodus/28 ; https://bible.usccb.org/bible/exodus/39 |
+| Exodus 29:26 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Exo+29%3A26-29 |
+| Exodus 30:13 | Retained; source checked | https://www.biblegateway.com/passage/?search=Exodus+30%3A13&version=NET |
+| Exodus 32:15 | Retained; source checked | https://bible.usccb.org/bible/exodus/32 ; https://bible.usccb.org/bible/readings/073117.cfm |
+| Exodus 35:25 | Retained; source checked | https://bible.usccb.org/bible/exodus/35 |
+| Exodus 36:18 | Retained; source checked | https://classic.net.bible.org/bible.php?book=Exo&chapter=36&mode=text |
+| Exodus 37:16 | Retained; source checked | https://bible.usccb.org/bible/exodus/37 ; https://www.biblegateway.com/passage/?search=Exodus+37%3A16%2CNumbers+4%3A7&version=NRSVUE ; https://bible.usccb.org/bible/leviticus/24 |
+| Exodus 39:3 | Retained; source checked | https://bible.usccb.org/bible/exodus/39 |
+
+Resume: Leviticus ancient_culture.
