@@ -1943,3 +1943,76 @@ Resume: Matthew.
 | John 19:23 | Retained | https://www.biblegateway.com/passage/?search=John+19&version=NET ; https://classic.biblegateway.com/resources/ivp-nt/Soldiers-Divide-Jesus-Clothes |
 
 Resume: Acts.
+
+## Batch 71 — Acts through Revelation ancient culture
+
+64 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 850/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Acts 1:12 | Retained | https://www.biblegateway.com/passage/?search=Acts+1&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Act&chapter=1&tab=commentaries&verse=12 |
+| Acts 2:1 | Retained | https://www.biblegateway.com/passage/?search=Acts+2&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/acts/2/1 |
+| Acts 2:5 | Retained | https://www.biblegateway.com/passage/?search=Acts+2&version=NET ; https://www.uecf.net/books/acts-an-exegetical-commentary-volume-1-introduction-and-1-1-247/chapter40.html |
+| Acts 3:1 | Retained | https://www.biblegateway.com/passage/?search=Acts+3&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-acts-31/ |
+| Acts 6:1 | Retained | https://www.biblegateway.com/passage/?search=Acts+6&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Act&chapter=6&tab=commentaries&verse=1 |
+| Acts 8:27 | Retained | https://www.biblegateway.com/passage/?search=Acts+8&version=NET ; https://www.cbeinternational.org/resource/the-kandake-a-missing-history/ |
+| Acts 9:11 | Revised | https://www.biblegateway.com/passage/?search=Acts+9&version=NET ; https://www.biblegateway.com/resources/encyclopedia-of-the-bible/Straight |
+| Acts 10:2 | Retained | https://www.biblegateway.com/passage/?search=Acts+10&version=NET ; https://www.thegospelcoalition.org/commentary/acts/ |
+| Acts 12:12 | Retained | https://www.biblegateway.com/passage/?search=Acts+12&version=NET ; https://bible.org/sites/bible.org/resources/assets/pdf/Utley_03BActs.pdf |
+| Acts 13:7 | Retained | https://www.biblegateway.com/passage/?search=Acts+13&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2022/09/Acts-an-exegetical-commentary.-2-3-1-14-28-Craig-S.-Keener-by-Keener-Craig-S.-z-lib.org_.pdf |
+| Acts 14:12 | Retained | https://www.biblegateway.com/passage/?search=Acts+14&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2022/09/Acts-an-exegetical-commentary.-2-3-1-14-28-Craig-S.-Keener-by-Keener-Craig-S.-z-lib.org_.pdf |
+| Acts 16:14 | Retained | https://www.biblegateway.com/passage/?search=Acts+16&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-acts-1614/ |
+| Acts 16:37 | Retained | https://www.biblegateway.com/passage/?search=Acts+16&version=NET ; https://journals.sagepub.com/doi/10.1177/0142064X21989658 |
+| Acts 17:16 | Retained | https://www.biblegateway.com/passage/?search=Acts+17&version=NET ; https://sats.ac.za/wp-content/uploads/2020/02/Conspectus-Volume-16.pdf ; https://beta.perseus.tufts.edu/urn%3Acts%3AgreekLit%3Atlg0525.tlg001.perseus-eng2%3A1.3/ |
+| Acts 17:23 | Retained | https://www.biblegateway.com/passage/?search=Acts+17&version=NET ; https://www.cambridge.org/core/journals/new-testament-studies/article/paul-and-socrates-in-dialogue-points-of-contact-between-the-areopagus-speech-and-the-apology/2CB4FAE4306105C3218C8DA22BA239A3 ; https://pausanias.symmachus.org/pausanias.pdf |
+| Acts 18:3 | Retained | https://www.biblegateway.com/passage/?search=Acts+18&version=NET ; https://depts.drew.edu/jhc/PaulInCorinth.pdf |
+| Acts 19:24 | Retained | https://www.biblegateway.com/passage/?search=Acts+19&version=NET ; https://bible.org/seriespage/acts-19 |
+| Acts 21:27 | Retained | https://www.biblegateway.com/passage/?search=Acts+21&version=NET ; https://classic.net.bible.org/verse.php?book=Act&chapter=21&tab=commentaries&theme=false&verse=27 |
+| Acts 22:28 | Retained | https://www.biblegateway.com/passage/?search=Acts+22&version=NET ; https://bible.org/sites/bible.org/resources/download/netbible/ondemand/bybook/act.pdf |
+| Acts 23:26 | Retained | https://www.biblegateway.com/passage/?search=Acts+23&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-acts-2326/ |
+| Acts 24:1 | Retained | https://www.biblegateway.com/passage/?search=Acts+24&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/The-Acts-of-the-Apostles_-The-Greek-Text-with-Introduction-and-Commentary-PDFDrive-.pdf |
+| Acts 25:11 | Retained | https://www.biblegateway.com/passage/?search=Acts+25&version=NET ; https://www.biblegateway.com/resources/ivp-nt/Disposition-Pauls-Appeal-Caesar |
+| Acts 26:14 | Retained | https://www.biblegateway.com/passage/?search=Acts+26&version=NET ; https://classic.net.bible.org/verse.php?book=Act&chapter=26&tab=commentaries&theme=wiki&verse=14 |
+| Acts 27:9 | Retained | https://www.biblegateway.com/passage/?search=Acts+27&version=NET ; https://www.bibliaplus.org/en/commentaries/102/george-haydocks-catholic-bible-commentary/acts/27/9 |
+| Acts 27:28 | Retained | https://www.biblegateway.com/passage/?search=Acts+27&version=NET ; https://www.biblegateway.com/passage/?interface=print&search=Acts+27%3A28&version=NET |
+| Acts 28:11 | Retained | https://www.biblegateway.com/passage/?search=Acts+28&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Act&chapter=28&tab=commentaries&verse=11 |
+| Romans 11:17 | Retained | https://www.biblegateway.com/passage/?search=Romans+11&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-romans-1117/ |
+| Romans 13:6 | Retained | https://www.biblegateway.com/passage/?search=Romans+13&version=NET ; https://www.wenstrom.org/downloads/written/exposition/romans/romans_13_5-6.pdf |
+| Romans 16:1 | Retained | https://www.biblegateway.com/passage/?search=Romans+16&version=NET ; https://www.uecf.net/books/romans-tntc/chapter51.html |
+| 1 Corinthians 4:1 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+4&version=NET ; https://www.rmcchurch.org/wp-content/uploads/2024/12/1corinthians-study-notes-v02.pdf |
+| 1 Corinthians 8:10 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+8&version=NET ; https://www.uecf.net/books/the-first-epistle-to-the-corinthians-revised-edition/chapter40.html |
+| 1 Corinthians 9:25 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+9&version=NET ; https://tips.translation.bible/tip_term/translation-commentary-on-1-corinthians-925/ |
+| 1 Corinthians 15:33 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+15&version=NET ; https://repository.sbts.edu/bitstream/handle/10392/6084/Lee_sbts_0207D_10593.pdf?isAllowed=y&sequence=1 |
+| 2 Corinthians 2:14 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+2&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Second-Corinthians-Paideia-Commentaries-on-the-New-Testament-by-Raymond-F.-Collins-z-lib.org_.pdf |
+| 2 Corinthians 3:1 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+3&version=NET ; https://www.thegospelcoalition.org/commentary/2-corinthians/ |
+| 2 Corinthians 4:7 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+4&version=NET ; https://storage.googleapis.com/scripturecentral-prod-strapi-uploads/2_corinthians_1_7_71a7e1e7c6/2_corinthians_1_7_71a7e1e7c6.pdf |
+| 2 Corinthians 11:24 | Retained | https://www.biblegateway.com/passage/?search=2+Corinthians+11&version=NET ; https://tips.translation.bible/story/translation-commentary-on-2-corinthians-1124/ |
+| Galatians 2:9 | Retained | https://www.biblegateway.com/passage/?search=Galatians+2&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Gal&chapter=2&tab=commentaries&verse=9 |
+| Galatians 3:24 | Retained | https://www.biblegateway.com/passage/?search=Galatians+3&version=NET ; https://tips.translation.bible/story/translation-commentary-on-galatians-324/ |
+| Galatians 4:2 | Retained | https://www.biblegateway.com/passage/?search=Galatians+4&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Galatians-Baker-Exegetical-Commentary-on-the-New-Testament-BECNT-by-Douglas-Moo-z-lib.org_.pdf |
+| Galatians 6:11 | Retained | https://www.biblegateway.com/passage/?search=Galatians+6&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/Galatians-Baker-Exegetical-Commentary-on-the-New-Testament-BECNT-by-Douglas-J.-Moo-z-lib.org_.epub_.pdf |
+| Ephesians 1:13 | Retained | https://www.biblegateway.com/passage/?search=Ephesians+1&version=NET ; https://www.asaurnyarugenge.org/admin-panel/uploads/pdf/1689670839_2023%20Q3%20%E2%80%94%20EPHESIANS%20.pdf |
+| Ephesians 6:21 | Retained | https://www.biblegateway.com/passage/?search=Ephesians+6&version=NET ; https://icotb.org/wp-content/uploads/2024/12/David-Lipscomb-A-Commentary-on-the-New-Testament-Epistles-%E2%80%93-Volume-IV-Ephesians-Philippians-and-Colossians.pdf |
+| Philippians 3:20 | Retained | https://www.biblegateway.com/passage/?search=Philippians+3&version=NET ; https://amas.hk/pdf/shengjingshenxue/Philippians%20%28New%20Cambridge%20Bible%20Commentary%29%20%28Bird%2C%20Michael%20F.%20%20Gupta%2C%20Nijay%20K.%29%20%28z-lib.org%29.pdf |
+| Philippians 4:22 | Retained | https://www.biblegateway.com/passage/?search=Philippians+4&version=NET ; https://journals.sagepub.com/doi/10.1177/0142064X21989660 |
+| Colossians 2:14 | Retained | https://www.biblegateway.com/passage/?search=Colossians+2&version=NET ; https://www.tyndalebulletin.org/article/29436-the-meaning-of-in-colossians-2-14-revisited/attachment/75033.pdf |
+| Colossians 3:11 | Retained | https://www.biblegateway.com/passage/?search=Colossians+3&version=NET ; https://www.cambridge.org/core/services/aop-cambridge-core/content/view/702CAAD5AFC16318A058576A39502B98/9781009718097AR.pdf/Ethnic_Stereotypes_and_the_Letters_of_Paul.pdf?event-type=FTLA |
+| Colossians 4:14 | Retained | https://www.biblegateway.com/passage/?search=Colossians+4&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/colossians/4/14 |
+| 1 Thessalonians 4:11 | Retained | https://www.biblegateway.com/passage/?search=1+Thessalonians+4&version=NET ; https://bible.org/seriespage/1-thessalonians-4 |
+| 2 Thessalonians 3:17 | Retained | https://www.biblegateway.com/passage/?search=2+Thessalonians+3&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2022/09/1-2-Thessalonians-Baker-Exegetical-Commentary-on-the-New-Testament-BECNT-by-Jeffrey-A.-D.-Weima-z-lib.org_.epub_.pdf |
+| 1 Timothy 4:13 | Retained | https://www.biblegateway.com/passage/?search=1+Timothy+4&version=NET ; https://classic.net.bible.org/verse.php?book=1Ti&chapter=4&tab=commentaries&verse=13 |
+| 2 Timothy 2:5 | Retained | https://www.biblegateway.com/passage/?search=2+Timothy+2&version=NET ; https://classic.net.bible.org/verse.php?book=2Ti&chapter=2&tab=commentaries&theme=wiki&verse=5 |
+| Titus 1:12 | Retained | https://www.biblegateway.com/passage/?search=Titus+1&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/titus/1/12 |
+| Titus 3:13 | Retained | https://www.biblegateway.com/passage/?search=Titus+3&version=NET ; https://classic.net.bible.org/passage.php?passage=Tit+3%3A13 |
+| Philemon 1:18 | Retained | https://www.biblegateway.com/passage/?search=Philemon+1&version=NET ; https://tips.translation.bible/story/translation-commentary-on-philemon-118/ |
+| Hebrews 6:19 | Retained | https://www.biblegateway.com/passage/?search=Hebrews+6&version=NET ; https://concordy.org/heb/jfb/101 |
+| James 1:23 | Retained | https://www.biblegateway.com/passage/?search=James+1&version=NET ; https://ccel.org/ccel/barnes/ntnotes.xxiii.i.xxiii.html |
+| James 3:4 | Retained | https://www.biblegateway.com/passage/?search=James+3&version=NET ; https://tips.translation.bible/story/translation-commentary-on-james-34/ |
+| 1 Peter 1:1 | Retained | https://www.biblegateway.com/passage/?search=1+Peter+1&version=NET ; https://biblicalstudies.org.uk/pdf/e-books/hort_fja/1peter_hort.pdf |
+| 2 John 1:12 | Retained | https://www.biblegateway.com/passage/?search=2+John+1&version=NET ; https://tips.translation.bible/tip_source/haas-de-jonge-swellengrebel-ubs-helps-for-translators-1972b/ |
+| Revelation 1:11 | Retained | https://www.biblegateway.com/passage/?search=Revelation+1&version=NET ; https://tips.translation.bible/story/sil-translators-notes-on-revelation-111/ |
+| Revelation 2:1 | Retained | https://www.biblegateway.com/passage/?search=Revelation+2&version=NET ; https://paultanner.org/English%20Docs/Book%20Samples/Revelation_Lesson%202%20Sample_w%20Covers.pdf |
+| Revelation 6:6 | Retained | https://www.biblegateway.com/passage/?search=Revelation+6&version=NET ; https://scripture.how/en/commentaries/barnes/REV/6 |
+| Revelation 21:21 | Retained | https://www.biblegateway.com/passage/?search=Revelation+21&version=NET ; https://gaulishpolytheism.com/wp-content/uploads/2022/08/the-natural-history-of-pliny-volume-2-of-6-by-the-elder-pliny.pdf |
+
+Resume: reconcile the ancient-culture ledger against the live reference set.
