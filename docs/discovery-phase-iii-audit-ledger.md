@@ -1877,3 +1877,69 @@ Resume: Hosea.
 | Malachi 3:3 | Retained | https://www.biblegateway.com/passage/?search=Malachi+3&version=NET ; https://tips.translation.bible/story/translation-commentary-on-malachi-33/ |
 
 Resume: Matthew.
+
+## Batch 70 — the Gospels ancient culture
+
+57 first-pass reviews. Revised facts and source notes checked in a separate database read. Ancient culture cumulative 786/850.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Matthew 2:1 | Retained | https://www.biblegateway.com/passage/?search=Matthew+2&version=NET ; https://wrap.warwick.ac.uk/id/eprint/118998/1/WRAP-early-christianity-Sanzo-2019.pdf |
+| Matthew 2:11 | Retained | https://www.biblegateway.com/passage/?search=Matthew+2&version=NET ; https://www.christianstudylibrary.org/files/pub/book_previews/David-L-Turner_Matthew_Visit-of-the-Magi.pdf |
+| Matthew 3:12 | Retained | https://www.biblegateway.com/passage/?search=Matthew+3&version=NET ; https://classic.net.bible.org/verse.php?book=Mat&chapter=3&tab=commentaries&verse=12 |
+| Matthew 5:14 | Retained | https://www.biblegateway.com/passage/?search=Matthew+5&version=NET ; https://biblicalstudies.gospelstudies.org.uk/pdf/e-books/broadus_j-a/american-commentary-on-matthew_broadus.pdf |
+| Matthew 8:4 | Retained | https://www.biblegateway.com/passage/?search=Matthew+8&version=NET ; https://tips.translation.bible/tip_verse/matt-84/ |
+| Matthew 9:9 | Retained | https://www.biblegateway.com/passage/?search=Matthew+9&version=NET ; https://www.biblegateway.com/passage/?search=Matthew+4%3A19%3B+8%3A22%3B+9%3A9%3B+Mark+2%3A14&version=NRSVUE%3BNET%3BNLT |
+| Matthew 10:29 | Retained | https://www.biblegateway.com/passage/?search=Matthew+10&version=NET ; https://byustudies.byu.edu/article/coins-in-the-new-testament |
+| Matthew 11:29 | Retained | https://www.biblegateway.com/passage/?search=Matthew+11&version=NET ; https://www.biblegateway.com/resources/nivac-sample/Matt.11.28-Matt.11.30 |
+| Matthew 13:25 | Retained | https://www.biblegateway.com/passage/?search=Matthew+13&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/matthew/13/25 |
+| Matthew 14:25 | Retained | https://www.biblegateway.com/passage/?search=Matthew+14&version=NET ; https://bible.usccb.org/bible/matthew/14 |
+| Matthew 17:27 | Retained | https://www.biblegateway.com/passage/?search=Matthew+17&version=NET ; https://www.biblegateway.com/resources/commentaries/IVP-NT/Matt/Upholding-Societys |
+| Matthew 18:6 | Retained | https://www.biblegateway.com/passage/?search=Matthew+18&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/matthew/18/6 |
+| Matthew 19:24 | Retained | https://www.biblegateway.com/passage/?search=Matthew+19&version=NET ; https://www.cambridge.org/core/services/aop-cambridge-core/content/view/51F6B1FD504C36C42D6201F6D87F83C3/S0028688521000448a.pdf/origin_of_the_needles_eye_gate_myth_theophylact_or_anselm.pdf |
+| Matthew 20:2 | Retained | https://www.biblegateway.com/passage/?search=Matthew+20&version=NET ; https://tips.translation.bible/tip_verse/matt-202/ |
+| Matthew 22:20 | Retained | https://www.biblegateway.com/passage/?search=Matthew+22&version=NET ; https://pure.manchester.ac.uk/ws/portalfiles/portal/360723375/FULL_TEXT.PDF |
+| Matthew 23:5 | Retained | https://www.biblegateway.com/passage/?search=Matthew+23&version=NET ; https://search.biblegateway.com/resources/encyclopedia-of-the-bible/Phylactery |
+| Matthew 23:23 | Retained | https://www.biblegateway.com/passage/?search=Matthew+23&version=NET ; https://www.13petals.org/wp-content/uploads/2022/12/Matthew-23-commentary.pdf |
+| Matthew 25:1 | Retained | https://www.biblegateway.com/passage/?search=Matthew+25&version=NET ; https://jgrchj.net/volume16/JGRChJ16_10_Keener.pdf |
+| Matthew 27:51 | Retained | https://www.biblegateway.com/passage/?search=Matthew+27&version=NET ; https://classic.net.bible.org/verse.php?book=Mat&chapter=27&tab=commentaries&theme=wiki&verse=51 |
+| Mark 2:4 | Retained | https://www.biblegateway.com/passage/?search=Mark+2&version=NET ; https://wol.jw.org/en/wol/dx/r1/lp-e/1001070145/24380 |
+| Mark 3:6 | Retained | https://www.biblegateway.com/passage/?search=Mark+3&version=NET ; https://classic.net.bible.org/verse.php?book=Mar&chapter=3&tab=commentaries&theme=false&verse=6 |
+| Mark 4:21 | Retained | https://www.biblegateway.com/passage/?search=Mark+4&version=NET ; https://tips.translation.bible/story/translation-commentary-on-mark-421/ |
+| Mark 9:3 | Retained | https://www.biblegateway.com/passage/?search=Mark+9&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-mark-93/ |
+| Mark 12:42 | Retained | https://www.biblegateway.com/passage/?search=Mark+12&version=NET ; https://old-tips.translation.bible/story/translation-commentary-on-mark-1242/ |
+| Mark 13:35 | Retained | https://www.biblegateway.com/passage/?search=Mark+13&version=NET ; https://upload.wikimedia.org/wikipedia/commons/0/07/The_Gospel_according_to_Mark_..._%28IA_gospelaccording00lang%29.pdf |
+| Mark 14:3 | Retained | https://www.biblegateway.com/passage/?search=Mark+14&version=NET ; https://ccel.org/ccel/barnes/ntnotes.v.xiv.iii.html |
+| Mark 15:42 | Retained | https://www.biblegateway.com/passage/?search=Mark+15&version=NET ; https://classic.net.bible.org/verse.php/verse.php?book=Mar&chapter=15&verse=42 |
+| Mark 16:9 | Revised | https://www.biblegateway.com/passage/?search=Mark+16&version=NET ; https://divinity.ed.ac.uk/sites/default/files/2024-03/Professor%20Helen%20Bond%20-%20%26%23039%3BLost%20in%20Translation%3A%20Jesus%E2%80%99%20Women%20Disciples%26%23039%3B.pdf ; https://www.biblegateway.com/passage/?search=Luke+8%3A2%2C+Mark+16%3A9&version=NET |
+| Luke 1:5 | Retained | https://www.biblegateway.com/passage/?search=Luke+1&version=NET ; https://classic.net.bible.org/verse.php?book=Luk&chapter=1&tab=commentaries&verse=5 |
+| Luke 2:1 | Retained | https://www.biblegateway.com/passage/?search=Luke+2&version=NET ; https://bible.usccb.org/bible/luke/2 |
+| Luke 2:8 | Retained | https://www.biblegateway.com/passage/?search=Luke+2&version=NET ; https://oldmis.kp.ac.rw/admin/admin_panel/kp_lms/files/digital/Core%20Books/Theology/Luke-a-handbook-on-the-greek-text-baylor-handbook-.pdf |
+| Luke 2:21 | Retained | https://www.biblegateway.com/passage/?search=Luke+2&version=NET ; https://willingdon.org/app/uploads/2022/01/Text-Commentary-Resources-Lk-1.21-38.pdf |
+| Luke 3:1 | Retained | https://www.biblegateway.com/passage/?search=Luke+3&version=NET ; https://bible.usccb.org/bible/luke/3 |
+| Luke 4:17 | Retained | https://www.biblegateway.com/passage/?search=Luke+4&version=NET ; https://storage.googleapis.com/scripturecentral-prod-strapi-uploads/04_luke_chapter_4_219_268_c63b8a61cd/04_luke_chapter_4_219_268_c63b8a61cd.pdf |
+| Luke 5:10 | Retained | https://www.biblegateway.com/passage/?search=Luke+5&version=NET ; https://byustudies.byu.edu/online-book/the-testimony-of-luke/luke-chapter-5-104 |
+| Luke 6:1 | Retained | https://www.biblegateway.com/passage/?search=Luke+6&version=NET ; https://storage.vce.best/vce/textbooks/texts%20and%20traditions/Gospel%20Of%20Luke%20-%20Commentaries%2C%20Scholarly%20Documents%20and%20a%20few%20SACS/Tannehill%20Commentary%20on%20Luke.pdf |
+| Luke 6:38 | Retained | https://www.biblegateway.com/passage/?search=Luke+6&version=NET ; https://tips.translation.bible/tip_verse/luke-638/ |
+| Luke 8:3 | Retained | https://www.biblegateway.com/passage/?search=Luke+8&version=NET ; https://classic.net.bible.org/verse.php?book=Luk&chapter=8&tab=commentaries&theme=wiki&verse=3 |
+| Luke 10:34 | Retained | https://www.biblegateway.com/passage/?search=Luke+10&version=NET ; https://www.ajol.info/index.php/hts/article/view/214893 |
+| Luke 11:5 | Retained | https://www.biblegateway.com/passage/?search=Luke+11&version=NET ; https://folia.unifr.ch/documents/330145/files/PaharikH.pdf |
+| Luke 15:8 | Retained | https://www.biblegateway.com/passage/?search=Luke+15&version=NET ; https://tips.translation.bible/story/translation-comment-on-luke-158-2/ |
+| Luke 15:12 | Retained | https://www.biblegateway.com/passage/?search=Luke+15&version=NET ; https://byustudies.byu.edu/online-book/the-testimony-of-luke/1945 |
+| Luke 16:6 | Retained | https://www.biblegateway.com/passage/?search=Luke+16&version=NET ; https://classic.net.bible.org/verse.php?book=Luk&chapter=16&tab=commentaries&theme=wiki&verse=6 |
+| Luke 17:12 | Retained | https://www.biblegateway.com/passage/?search=Luke+17&version=NET ; https://www.biblegateway.com/passage/?search=Luke+17%3A12%2CLeviticus+13%3A45-46%2CLuke+5%3A12%2C2+Kings+7%3A3%2CLuke+18%3A13%2C2+Chronicles+26%3A20-21%2C2+Kings+5%3A27%2CNumbers+5%3A2-3%2CNumbers+12%3A14&version=NRSVUE%3BNIV |
+| Luke 19:13 | Retained | https://www.biblegateway.com/passage/?search=Luke+19&version=NET ; https://www.bibliaplus.org/en/commentaries/236/cambridge-greek-testament-for-schools-and-colleges-commentary/luke/19/13 |
+| Luke 20:46 | Retained | https://www.biblegateway.com/passage/?search=Luke+20&version=NET ; https://jakarta.hmcc.net/wp-content/uploads/sermons/Luke-20.41-47-20240114-Manuscript.pdf |
+| Luke 21:2 | Retained | https://www.biblegateway.com/passage/?search=Luke+21&version=NET ; https://www.jw.org/en/library/bible/study-bible/books/luke/21/ |
+| Luke 22:7 | Retained | https://www.biblegateway.com/passage/?search=Luke+22&version=NET ; https://www.thegospelcoalition.org/commentary/luke/ |
+| Luke 23:7 | Retained | https://www.biblegateway.com/passage/?search=Luke+23&version=NET ; https://tips.translation.bible/tip_term/sil-translators-notes-on-luke-23-7/ |
+| John 2:6 | Retained | https://www.biblegateway.com/passage/?search=John+2&version=NET ; https://classic.net.bible.org/verse.php?book=Joh&chapter=2&tab=commentaries&theme=wiki&verse=6 |
+| John 4:20 | Retained | https://www.biblegateway.com/passage/?search=John+4&version=NET ; https://www.thetbs.org/study-materials/wp-content/uploads/2023/03/The-IVP-Bible-Background-Commentary-New-Testament-by-Craig-S.-Keener-z-lib.org_.epub_.pdf |
+| John 7:2 | Retained | https://www.biblegateway.com/passage/?search=John+7&version=NET ; https://bible.armeniancathedral.org/book/tJn_7.htm?wid=3913 |
+| John 8:7 | Revised | https://www.biblegateway.com/passage/?search=John+8&version=NET ; https://knowledge.uchicago.edu/record/2269/files/Polk_uchicago_0330D_15212.pdf |
+| John 10:22 | Retained | https://www.biblegateway.com/passage/?search=John+10&version=NET ; https://www.biblegateway.com/passage/?search=John.10.22&version=NABRE |
+| John 12:3 | Retained | https://www.biblegateway.com/passage/?search=John+12&version=NET ; https://tips.translation.bible/story/translation-commentary-on-john-123-2/ |
+| John 13:4 | Retained | https://www.biblegateway.com/passage/?search=John+13&version=NET ; https://classic.net.bible.org/verse.php?book=Joh&chapter=13&tab=commentaries&verse=4 |
+| John 19:23 | Retained | https://www.biblegateway.com/passage/?search=John+19&version=NET ; https://classic.biblegateway.com/resources/ivp-nt/Soldiers-Divide-Jesus-Clothes |
+
+Resume: Acts.
