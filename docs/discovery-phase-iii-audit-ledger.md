@@ -950,3 +950,32 @@ Six entries rewritten against retrieved verse notes and re-queried. Cumulative 5
 | Song of Solomon 5:14 | Rewritten | https://classic.net.bible.org/verse.php?book=sos&chapter=5&verse=14 |
 | Song of Solomon 6:13 | Rewritten | https://classic.net.bible.org/passage.php?passage=Sos+6%3A13&theme=false |
 | Zechariah 12:11 | Rewritten | https://classic.net.bible.org/verse.php?book=zec&chapter=12&verse=11 |
+
+## Batch 48 — Genesis ancient culture, part 1
+
+20 existing records checked against retrieved source excerpts and primary texts. 19 retained with supplementary sources; Genesis 35:4 clarified using the NET discussion of Hurowitz. General historical claims not directly corroborated by these excerpts require further independent verification. Database re-query confirms 20 marked rows; no additions.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Genesis 2:10 | Retained; source checked | https://www.sefaria.org/Genesis.2.10-14 ; https://classic.net.bible.org/passage.php?passage=Gen+2%3A10-14 |
+| Genesis 4:21 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=gen+4%3A20-22 ; https://classic.net.bible.org/dictionary.php?word=music |
+| Genesis 8:4 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=8&tab=commentaries&theme=wiki&verse=4 |
+| Genesis 10:2 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=10&tab=commentaries&verse=2 |
+| Genesis 12:4 | Retained; source checked | https://www.iranicaonline.org/articles/harran/ |
+| Genesis 16:2 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+16%3A1-3 |
+| Genesis 18:6 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=18&theme=false&verse=6 |
+| Genesis 19:1 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=19&tab=commentaries&theme=false&verse=1 |
+| Genesis 23:16 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+23%3A15%2C16 |
+| Genesis 24:19 | Retained; source checked | https://bible.usccb.org/bible/genesis/24 |
+| Genesis 24:22 | Retained; source checked | https://classic.net.bible.org/verse.php?book=gen&chapter=24&verse=22 |
+| Genesis 27:4 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Gen+27%3A4 |
+| Genesis 29:9 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=29&theme=false&verse=9 |
+| Genesis 30:14 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=30&tab=commentaries&theme=wiki&verse=14 |
+| Genesis 33:19 | Retained; source checked | https://www.blueletterbible.org/lexicon/h7192/lsb/wlc/ |
+| Genesis 34:10 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=34&theme=wiki&verse=10 |
+| Genesis 34:12 | Retained; source checked | https://biblehub.com/lexicon/genesis/34-12.htm ; https://biblehub.com/bdb/4976.htm |
+| Genesis 35:4 | Rewritten | https://www.biblegateway.com/passage/?search=Genesis+35%3A4&version=NET |
+| Genesis 36:9 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=36&theme=false&verse=9 ; https://www.biblegateway.com/passage/?search=Genesis+36&version=NET%3BCSB%3BNKJV%3BKJV |
+| Genesis 38:8 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Gen&chapter=38&tab=commentaries&verse=8 ; https://classic.net.bible.org/passage.php?passage=Deu+25%3A5%2C6 |
+
+Resume: remaining Genesis ancient_culture entries.
