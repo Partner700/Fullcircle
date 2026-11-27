@@ -2626,3 +2626,27 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | 1 Chronicles 6:54 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+6%3A54-63&version=NIV%3BNKJV; Chronicles excerpt retrieved; Joshua 21 full page blocked. |
 | 1 Chronicles 8:33 | Retained | https://classic.net.bible.org/passage.php?passage=1Ch+8%3A33; NET note explicitly confirms alternative name. |
 | 1 Corinthians 1:12 | Revised | https://classic.net.bible.org/verse.php?book=1Co&chapter=1&theme=false&verse=12 ; https://classic.net.bible.org/verse.php?book=Joh&chapter=1&theme=false&verse=42; Both verse excerpts retrieved. |
+
+
+## Batch 94 — Textual connections: 1 Corinthians through 1 John 5:13
+
+16 first-pass editorial reviews, 15 source-note updates, four substantive rewrites. Search result excerpts retrieved from published translations and NET/NABRE notes; full passage retrieval not comprehensive. One entry retained unchanged pending independent retrieval; other limitations recorded per row. All 16 database records read back against expected facts and notes. No illustration or production certification.
+
+| Reference | Verdict | Retrieved sources / limitations |
+|---|---|---|
+| 1 Corinthians 1:19 | Retained | https://www.biblegateway.com/passage/?search=Isaiah+29%3A14%2C1+Corinthians+1%3A19&version=NIV; Comparative verses retrieved; Isaiah 29:13 context not separately retrieved |
+| 1 Corinthians 10:20 | Revised | https://www.biblegateway.com/passage/?search=1+Corinthians+10&version=NET%3BNABRE; NET/NABRE chapter and commentary retrieved; Deuteronomy primary passage not separately retrieved |
+| 1 Corinthians 10:4 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+10&version=NET%3BNABRE; Published chapter and cross-references retrieved; Exodus and Numbers primary passages not separately retrieved |
+| 1 Corinthians 11:25 | Retained | https://www.biblegateway.com/passage/?search=Exodus+24%3A8%2CJeremiah+31%3A31-Jeremiah+31%3A34%2C1+Corinthians+11%3A25%2CExodus+24%3A6-Exodus+24%3A8&version=GNT; Comparative passage result retrieved |
+| 1 Corinthians 13:13 | Retained | https://www.biblegateway.com/passage/?search=1+Thessalonians+1%3A3%2C1+Corinthians+13%3A13%2CGalatians+5%3A6%2CRevelation+2%3A19%2C2+Thessalonians+1%3A11%2CRomans+8%3A24-25%2C1+John+5%3A3&version=NRSVUE%3BNIV; Comparative excerpt retrieved |
+| 1 Corinthians 14:21 | Revised | https://www.biblegateway.com/passage/?search=1+Corinthians+14%3A21%3BIsaiah+28%3A11-12&version=NRSVUE%3BNIV; Comparative passage result retrieved |
+| 1 Corinthians 15:20 | Revised | https://www.biblegateway.com/passage/?search=Leviticus+23%3A9-14%2C1+Corinthians+15%3A20-23&version=NIV; Comparative excerpt retrieved |
+| 1 Corinthians 2:16 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+2&version=NET; NET chapter note identifies Isaiah quotation; Isaiah primary passage not separately retrieved |
+| 1 Corinthians 2:9 | Pending source check | No new source; Specific textual comparison requires further retrieval; existing note retained |
+| 1 Corinthians 5:13 | Retained | https://www.biblegateway.com/passage/?search=1+Corinthians+5%3A13%2CDeuteronomy+17%3A7%2CDeuteronomy+13%3A5%2CDeuteronomy+21%3A21%2CMatthew+18%3A17&version=NIV%3BESV%3BNKJV; Comparative result retrieved; broader congregational context requires further check |
+| 1 Corinthians 5:6 | Retained | https://classic.net.bible.org/passage.php?passage=1cor+5%3A6-9; NET text and note retrieved; Exodus passage not separately retrieved |
+| 1 Corinthians 8:6 | Revised | https://www.biblegateway.com/passage/?search=Deuteronomy+6%3A4%2C1+Corinthians+8%3A4%2C1+Corinthians+8%3A6&version=ESV; Comparative result retrieved; scholarly Shema interpretation not independently corroborated |
+| 1 Corinthians 9:9 | Retained | https://www.biblegateway.com/passage/?search=Deuteronomy+25%3A4%2C1+Corinthians+9%3A9-12&version=NIV; Comparative result retrieved; verses 13–15 not independently retrieved |
+| 1 John 1:1 | Retained | https://www.biblegateway.com/passage/?search=1+joh+1%3A1&version=NIV; Letter verse result retrieved; Gospel prologue comparison pending |
+| 1 John 3:12 | Retained | https://www.biblegateway.com/passage/?search=Genesis+4%3A6-8%2C1+John+3%3A10-16&version=NIV; Comparative passage result retrieved |
+| 1 John 5:13 | Retained | https://www.biblegateway.com/passage/?search=John+20%3A31%2C1+John+5%3A13&version=NIV; Comparative result retrieved |
