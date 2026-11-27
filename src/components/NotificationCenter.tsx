@@ -135,6 +135,7 @@ export function NotificationCenter({ onNavigate }: Props) {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'user_notifications', filter: `recipient_id=eq.${userId}` },
       (payload) => {
+        if (activeUser.current !== userId) return;
         if (payload.eventType === 'INSERT') {
           const notification = payload.new as UserNotification;
           if (!audioCallId(notification)) {
@@ -147,7 +148,7 @@ export function NotificationCenter({ onNavigate }: Props) {
       },
     ).subscribe();
     return () => { void supabase.removeChannel(channel); };
-  }, [load, profile]);
+  }, [load, userId]);
 
   useEffect(() => {
     if (!open) return;
