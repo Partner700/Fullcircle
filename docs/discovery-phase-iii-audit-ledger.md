@@ -2251,3 +2251,27 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Amos 6:5 | Retained | https://bible.usccb.org/bible/amos/6 |
 | Amos 9:7 | Revised | https://bible.usccb.org/bible/amos/9 |
 | Daniel 10:13 | Retained | https://bible.usccb.org/bible/daniel/10 |
+
+
+## Batch 80 — Scripture detail: Daniel through Esther 10
+
+16 first-pass reviews, using retrieved USCCB chapter texts, NET/NIV passage excerpts and Sefaria commentary. Four fact revisions. Some USCCB requests returned 403; alternative published passages consulted. Cross-references and secondary claims not comprehensively corroborated. All records independently read back. No illustration or production certification.
+
+| Reference | Verdict | Sources |
+|---|---|---|
+| Daniel 12:2 | Retained | https://www.biblegateway.com/passage/?search=Daniel+12&version=NET%3BESV |
+| Daniel 3:18 | Retained | https://www.biblegateway.com/passage/?search=Daniel+3%3A16-18&version=NET |
+| Daniel 4:27 | Retained | https://www.biblegateway.com/passage/?search=Daniel+4%3A27-30&version=NIV%3BNKJV |
+| Daniel 7:2 | Retained | https://bible.usccb.org/bible/daniel/7 |
+| Daniel 8:20 | Revised | https://bible.usccb.org/bible/daniel/8 |
+| Deuteronomy 1:2 | Retained | https://bible.usccb.org/bible/deuteronomy/1 |
+| Deuteronomy 33:6 | Retained | https://www.biblegateway.com/passage/?search=Deuteronomy+33&version=NET%3BKJV%3BNIV ; https://www.biblegateway.com/passage/?search=Joshua+19%3A1-9&version=NET |
+| Deuteronomy 9:18 | Retained | https://bible.usccb.org/bible/deuteronomy/9 |
+| Ecclesiastes 3:1 | Revised | https://bible.usccb.org/bible/ecclesiastes/3 |
+| Ecclesiastes 4:12 | Retained | https://bible.usccb.org/bible/ecclesiastes/4 |
+| Ecclesiastes 6:2 | Retained | https://www.biblegateway.com/passage/?search=Ecclesiastes+6%3A1-9&version=NET%3BNIV |
+| Ecclesiastes 8:17 | Retained | https://bible.usccb.org/bible/ecclesiastes/8 |
+| Ecclesiastes 9:11 | Revised | https://classic.net.bible.org/verse.php?book=ecc&chapter=9&verse=11 |
+| Ephesians 5:19 | Retained | https://bible.usccb.org/bible/ephesians/5 |
+| Esther 10:2 | Revised | https://www.biblegateway.com/passage/?search=Esther+10&version=NKJV%3BNET ; https://www.sefaria.org/Esther.10?with=Commentary |
+| Esther 10:3 | Retained | https://www.biblegateway.com/passage/?search=Esther+10&version=NKJV%3BNET |
