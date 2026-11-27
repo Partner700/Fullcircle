@@ -374,3 +374,42 @@ Resume: Psalms 43:3 onward, original_language.
 | Psalms 148:7 | Retained; source added | https://www.openbible.com/text/psalms/148-7.htm |
 
 Resume: remaining Psalms original_language rows not in batches 23–24, then Proverbs. Do not skip unreviewed rows.
+
+## Batch 25 — Remaining Psalms lexical review
+
+30 existing entries substantively rewritten following direct inspection of verse-specific Hebrew morphology and NET notes. Database updates re-queried: 30/30. Recorded lexical review count: 291/533. Some earlier ledger entries still require independent corroboration; source links alone do not certify every claim.
+
+| Reference | Verdict | Source inspected |
+|---|---|---|
+| Psalms 43:3 | Rewritten; primary text inspected | https://www.openbible.com/text/psalms/43-3.htm |
+| Psalms 61:2 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/61-2.htm |
+| Psalms 64:3 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/64-3.htm |
+| Psalms 65:13 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/65-13.htm |
+| Psalms 70:5 | Rewritten; primary text inspected | https://www.openbible.com/text/psalms/70-5.htm |
+| Psalms 71:6 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/71-6.htm |
+| Psalms 73:2 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/73-2.htm |
+| Psalms 74:14 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/74-14.htm |
+| Psalms 75:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/75-4.htm |
+| Psalms 85:10 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/85-10.htm |
+| Psalms 91:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/91-4.htm |
+| Psalms 93:3 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/93-3.htm |
+| Psalms 95:7 | Rewritten; primary text inspected | https://www.openbible.com/text/psalms/95-7.htm |
+| Psalms 96:12 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/96-12.htm |
+| Psalms 105:23 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/105-23.htm |
+| Psalms 114:1 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/114-1.htm |
+| Psalms 118:25 | Rewritten; primary text inspected | https://classic.net.bible.org/verse.php?book=Psa&chapter=118&theme=false&verse=25 ; https://classic.net.bible.org/search.php?in=notes&mode=notes&page=17&search=psalms |
+| Psalms 122:6 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/122-6.htm |
+| Psalms 123:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/123-4.htm |
+| Psalms 125:3 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/125-3.htm |
+| Psalms 129:3 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/129-3.htm |
+| Psalms 130:1 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/130-1.htm |
+| Psalms 132:17 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/132-17.htm |
+| Psalms 136:23 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/136-23.htm |
+| Psalms 138:6 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/138-6.htm |
+| Psalms 139:13 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/139-13.htm |
+| Psalms 139:8 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/139-8.htm |
+| Psalms 140:12 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/140-12.htm |
+| Psalms 147:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/147-4.htm |
+| Psalms 149:4 | Rewritten; primary text inspected | https://biblehub.com/text/psalms/149-4.htm |
+
+Resume: Proverbs original_language, then remaining books. Finish any earlier flagged corroboration and audit all other categories.
