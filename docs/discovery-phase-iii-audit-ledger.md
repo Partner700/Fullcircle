@@ -1123,3 +1123,26 @@ Resume: Numbers 16:38 onwards, remaining unmarked ancient culture.
 | Numbers 36:6 | Retained; source checked | https://bible.usccb.org/bible/numbers/36 |
 
 Resume: Deuteronomy ancient culture.
+
+## Batch 55 — Deuteronomy ancient culture, part 1
+
+14 first-pass source checks; two rewritten, including uncertainty about the date of the complete Shema liturgy. Ancient culture cumulative 124/850. Broad historical claims remain subject to independent corroboration.
+
+| Reference | Verdict | Retrieved source |
+|---|---|---|
+| Deuteronomy 2:6 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Deu&chapter=2&theme=false&verse=6 ; https://biblehub.com/lexicon/deuteronomy/2-6.htm |
+| Deuteronomy 3:9 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Deu&chapter=3&tab=commentaries&theme=wiki&verse=9 |
+| Deuteronomy 4:19 | Retained; source checked | https://bible.usccb.org/bible/deuteronomy/4 |
+| Deuteronomy 6:7 | Rewritten | https://www.biblegateway.com/passage/?search=Deuteronomy+6%3A6-7&version=NET ; https://www.myjewishlearning.com/article/deuteronomy-64-the-shema/ ; https://www.academia.edu/26191088/_The_Shema_in_the_Second_Temple_Period_a_reconsideration_Journal_of_Ancient_Judaism_6_1_2015_58_84 |
+| Deuteronomy 6:9 | Retained; source checked | https://www.myjewishlearning.com/article/mezuzah/ ; https://reformjudaism.org/beliefs-practices/lifecycle-rituals/what-mezuzah-why-and-how-do-we-use-it |
+| Deuteronomy 10:18 | Retained; source checked | https://bible.usccb.org/bible/deuteronomy/10 |
+| Deuteronomy 11:10 | Retained; source checked | https://classic.net.bible.org/passage.php?passage=Deu+11%3A10%2C11 |
+| Deuteronomy 11:14 | Retained; source checked | https://bible.usccb.org/bible/deuteronomy/11 |
+| Deuteronomy 12:15 | Rewritten | https://classic.net.bible.org/verse.php?book=Deu&chapter=12&tab=commentaries&verse=15 |
+| Deuteronomy 14:1 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Deu&chapter=14&tab=commentaries&verse=1 |
+| Deuteronomy 14:24 | Retained; source checked | https://www.biblegateway.com/passage/?search=Deuteronomy+14%3A24-26&version=NET |
+| Deuteronomy 15:14 | Retained; source checked | https://www.biblegateway.com/passage/?search=Deuteronomy+15%3A12-14&version=NET%3BNIV |
+| Deuteronomy 16:1 | Retained; source checked | https://bible.usccb.org/bible/deuteronomy/16 ; https://classic.net.bible.org/verse.php?book=Deu&chapter=16&verse=1 |
+| Deuteronomy 16:18 | Retained; source checked | https://classic.net.bible.org/verse.php?book=Deu&chapter=16&tab=commentaries&theme=false&verse=18 |
+
+Resume: Deuteronomy 17:18 onwards.
