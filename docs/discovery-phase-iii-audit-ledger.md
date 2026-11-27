@@ -2603,3 +2603,26 @@ Resume Phase III with the 61 `earliest_evidence` entries, then the remaining `sc
 | Zechariah 8:19 | Revised | https://classic.net.bible.org/verse.php?book=Zec&chapter=8&verse=19 ; https://www.biblegateway.com/passage/?search=Zechariah+8%3A19&version=NABRE |
 | Zephaniah 1:1 | Retained | https://classic.net.bible.org/verse.php?book=Zep&chapter=1&verse=1 |
 | Zephaniah 3:17 | Revised | https://classic.net.bible.org/verse.php?book=zeph&chapter=3&verse=17 |
+
+
+## Batch 93 — Textual connections: 1 Chronicles through 1 Corinthians 1:12
+
+15 first-pass editorial reviews; 13 source-note updates, five substantive rewrites. Two entries retained unchanged because external retrieval failed. Retrieved evidence ranges from full chapter pages to published excerpts; explicit cross-reference caveats below. All 15 rows read back; no illustration or production certification. Expanded Threads programme begins only after Did You Know audit acceptance criteria are met.
+
+| Reference | Verdict | Retrieved sources / limitations |
+|---|---|---|
+| 1 Chronicles 1:43 | Pending source check | No new source; Combined primary text retrieval failed; existing reference retained, external check pending. |
+| 1 Chronicles 10:12 | Revised | https://www.biblegateway.com/passage/?search=1+Samuel+31%3A13%2C1+Chronicles+10%3A12%2CJob+2%3A11%2CJohn+11%3A31&version=NASB1995; Both passage excerpts retrieved. |
+| 1 Chronicles 13:3 | Retained | https://classic.net.bible.org/verse.php?book=1Ch&chapter=13&verse=3 ; https://bible.usccb.org/bible/1chronicles/15; NET excerpt and chapter 15 text retrieved. |
+| 1 Chronicles 15:2 | Revised | https://bible.usccb.org/bible/1chronicles/15; Chapter text retrieved; Numbers references listed there but full Torah passages not retrieved. |
+| 1 Chronicles 16:8 | Revised | https://www.biblegateway.com/passage/?search=1+Chronicles+16&version=NABRE%3BLSG%3BNIV ; https://www.biblegateway.com/passage/?search=Psalm+96%2CPsalm+105%2C1+Chronicles+16%3A7-36&version=NASB%3BNET%3BKJV; Published comparative excerpts and NABRE cross-references retrieved. |
+| 1 Chronicles 17:4 | Pending source check | No new source; Combined passage and USCCB retrieval failed; external check pending. |
+| 1 Chronicles 19:4 | Revised | https://bible.usccb.org/bible/1chronicles/19; Chronicles chapter retrieved; Samuel parallel referenced there, independent text check pending. |
+| 1 Chronicles 20:1 | Retained | https://bible.usccb.org/bible/1chronicles/20; Chapter and explicit editorial footnote on omitted episode retrieved. |
+| 1 Chronicles 21:26 | Retained | https://bible.usccb.org/bible/1chronicles/21; Primary passage excerpt and cross-reference retrieved; 2 Chronicles 7 full page blocked. |
+| 1 Chronicles 24:7 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+24%3A10%2CLuke+1%3A5&version=NIV; Abijah and Luke comparison retrieved; verse 7 head of first division not independently retrieved. |
+| 1 Chronicles 28:9 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+29%3A17%2C1+Chronicles+28%3A9%2CJeremiah+17%3A10%2CProverbs+11%3A20%2C1+Samuel+16%3A7&version=ESV%3BNIV%3BNKJV%3BKJV; Comparative excerpt retrieved. |
+| 1 Chronicles 3:5 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+3%3A5%2C2+Samuel+11%3A3%2C2+Samuel+12%3A24-25%2CLuke+3%3A31%2CMatthew+1%3A6&version=NASB%3BNIV%3BESV%3BNKJV%3BKJV; Comparative passage excerpt retrieved. |
+| 1 Chronicles 6:54 | Retained | https://www.biblegateway.com/passage/?search=1+Chronicles+6%3A54-63&version=NIV%3BNKJV; Chronicles excerpt retrieved; Joshua 21 full page blocked. |
+| 1 Chronicles 8:33 | Retained | https://classic.net.bible.org/passage.php?passage=1Ch+8%3A33; NET note explicitly confirms alternative name. |
+| 1 Corinthians 1:12 | Revised | https://classic.net.bible.org/verse.php?book=1Co&chapter=1&theme=false&verse=12 ; https://classic.net.bible.org/verse.php?book=Joh&chapter=1&theme=false&verse=42; Both verse excerpts retrieved. |
