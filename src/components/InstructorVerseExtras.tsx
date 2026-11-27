@@ -100,7 +100,10 @@ export function useInstructorVerseExtras(references: string[]) {
 }
 
 // Individually verified artifact photographs. Load only on explicit opening.
-const VERIFIED_DISCOVERY_IMAGES: Record<string, {file:string; alt:string; credit:string; license:string; licenseUrl:string}> = {
+const VERIFIED_DISCOVERY_IMAGES: Record<string, {file?:string; imageUrl?:string; pageUrl?:string; alt:string; credit:string; license:string; licenseUrl:string}> = {
+  'Genesis 38:18': {"imageUrl":"https://collectionapi.metmuseum.org/api/collection/v1/iiif/327283/1668695/main-image","pageUrl":"https://www.metmuseum.org/art/collection/search/327283","alt":"Old Babylonian cylinder seal and modern impression, 18th–17th century BCE (example of seal technology, not Judah's seal)","credit":"The Metropolitan Museum of Art, 1987.96.5","license":"Public Domain","licenseUrl":"https://www.metmuseum.org/about-the-met/policies-and-documents/open-access"},
+  'John 5:2': {"file":"Jerusalem-Church-of-St-Anne-DZCA-1054.jpg","alt":"Excavated Pool of Bethesda, Jerusalem (present-day ruins)","credit":"Bukvoed","license":"CC BY 4.0","licenseUrl":"https://creativecommons.org/licenses/by/4.0/"},
+  'John 18:29': {"file":"Dedicatory inscription found reused in the staircase of the theatre of Caesarea, the first and only mention of Pontius Pilates' name ever unearthed, 26-36 AD, Israel Museum, Jerusalem (15655925251).jpg","alt":"Photograph of the original Pilate inscription in the Israel Museum","credit":"Carole Raddato","license":"CC BY-SA 2.0","licenseUrl":"https://creativecommons.org/licenses/by-sa/2.0/"},
   '2 Chronicles 36:23': {file:'Cyrus_Cylinder_BM_ME90920.jpg', alt:'Cuneiform inscription on the Cyrus Cylinder, British Museum', credit:'Marie-Lan Nguyen (Jastrow)', license:'CC BY 2.5', licenseUrl:'https://creativecommons.org/licenses/by/2.5/'},
   'Acts 21:28': {file:'Temple_Warning_Inscription_from_Jerusalem_Istanbul_Archaeology_Museums.jpg', alt:'Greek warning inscription from the Jerusalem Temple, Istanbul Archaeology Museums', credit:'Yong Woo Park (Ywpark2003)', license:'CC0 1.0', licenseUrl:'https://creativecommons.org/publicdomain/zero/1.0/'},
 };
@@ -108,12 +111,13 @@ function VerifiedDiscoveryImage({reference}:{reference:string}) {
   const entry = VERIFIED_DISCOVERY_IMAGES[reference];
   const [failed, setFailed] = useState(false);
   if (!entry) return null;
-  const filePage = 'https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(entry.file);
+  const filePage = entry.pageUrl ?? ('https://commons.wikimedia.org/wiki/File:' + encodeURIComponent(entry.file ?? ''));
+  const imageUrl = entry.imageUrl ?? ('https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(entry.file ?? '') + '?width=640');
   return <figure className="my-3 overflow-hidden rounded-lg border border-border">
     {!failed && <a href={filePage} target="_blank" rel="noopener noreferrer">
-      <img src={'https://commons.wikimedia.org/wiki/Special:FilePath/' + encodeURIComponent(entry.file) + '?width=640'} alt={entry.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="max-h-64 w-full object-contain" />
+      <img src={imageUrl} alt={entry.alt} loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="max-h-64 w-full object-contain" />
     </a>}
-    <figcaption className="p-2 text-xs leading-relaxed text-stone"><a href={filePage} target="_blank" rel="noopener noreferrer" className="underline">{entry.alt}</a> · {entry.credit} · <a href={entry.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{entry.license}</a></figcaption>
+    <figcaption className="p-2 text-xs leading-relaxed text-stone"><a href={filePage} target="_blank" rel="noopener noreferrer" className="underline">{entry.alt}</a> · {entry.credit} · <a href={entry.licenseUrl} target="_blank" rel="noopener noreferrer" className="underline">{entry.license}</a> · Unmodified image, scaled for display</figcaption>
   </figure>;
 }
 
