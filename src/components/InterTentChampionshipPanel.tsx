@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, CalendarClock, Trophy, RotateCw } from 'lucide-react';
+import { ChevronDown, CalendarClock, Trophy, RotateCw, Swords, Shield } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { fetchArenaInvitees } from '../lib/queries';
 import { DAVID_GROUPS, type InterTentChampionship, type InterTentGroup } from '../lib/interTentChampionship';
@@ -7,6 +7,17 @@ import type { PanelImageSetting } from '../lib/types';
 import { InterTentMatchCard } from './InterTentMatchCard';
 import { AppSelect } from './AppSelect';
 import { useInterTentChampionships } from '../hooks/useInterTentChampionships';
+import { PanelImageBackdrop } from './PanelImageBackdrop';
+import { TentHouseSymbol, HOUSE_COLORS } from './TentHouseSymbol';
+
+function tentHouse(name: string) {
+  if (/laurel|laureat/i.test(name)) return 'laureats';
+  if (/spade/i.test(name)) return 'spades';
+  if (/square/i.test(name)) return 'squares';
+  if (/daric/i.test(name)) return 'darics';
+  if (/rh?ude/i.test(name)) return 'rudes';
+  return null;
+}
 
 const groupKeys: InterTentGroup[] = ['A','B','C','D'];
 const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {timeZone:'Africa/Douala',weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit',hour12:true}).format(new Date(value));
@@ -94,25 +105,29 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
   };
   if(!enabled && !instructor) return null;
   if(!events.length && !instructor) return null;
-  return <section className="card p-4 space-y-4">
+  return <section data-artwork-theme="night" className="relative isolate overflow-hidden rounded-2xl border border-gold/40 bg-[#0b1830] p-3 text-white shadow-xl sm:p-5">
+    <PanelImageBackdrop image={arenaImage} opacityOverride={80} modeFilter={false} textGradient={false} simple veilClassName="bg-gradient-to-b from-[#071326]/45 via-[#071326]/65 to-[#071326]/90" />
+    <div className="relative z-10 space-y-4">
     <div className="flex items-center justify-between gap-2">
-      <div><p className="eyebrow text-brass">Journey Trivia</p><h3 className="mt-1 font-display font-bold text-ink text-lg">Inter-Tent Championship</h3></div>
-      <button type="button" onClick={()=>void refresh()} className="btn-ghost" aria-label="Refresh championship"><RotateCw size={16}/></button>
+      <div className="flex items-center gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-amber-300/40 bg-[#10223a]/70 text-amber-300"><Swords size={25}/></span><div><p className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">Journey Trivia · Arena</p><h3 className="font-display text-xl font-black leading-tight text-white sm:text-2xl">Inter-Tent Championship</h3></div></div>
+      <button type="button" onClick={()=>void refresh()} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-[#10223a]/70 text-white" aria-label="Refresh championship"><RotateCw size={16}/></button>
     </div>
-    <p className="text-xs text-stone">Four weeks · 16 group fixtures · Same-tent sides · Highest average points per tent qualifies · Two-leg semifinal · One-leg final.</p>
-    <p className="rounded-lg border border-gold/30 bg-gold/5 p-2.5 text-xs leading-relaxed text-ink">
-      <strong>Match entry:</strong> The first selected player can start after the countdown and keep playing alone. New players join the next turns in arrival order. There is a <strong>15-minute grace period after the match begins</strong>; joining later costs <strong>5,000 Denarii once</strong>, but selected players can still enter while the match is live.
-    </p>
     {instructor && enabled && (editing || !events.some(e=>e.status!=='completed')) && <div className="space-y-3 border-b border-border pb-4">
       <label className="block text-xs font-semibold text-stone">First Tuesday (Cameroon)<input type="date" className="input-field mt-1" value={firstTuesday} onChange={e=>setFirstTuesday(e.target.value)}/></label>
       {groupKeys.map(g=><div key={g}><p className="font-display font-bold text-ink text-sm mb-1">Group {g}</p><div className="grid grid-cols-2 gap-2">{[0,1,2,3].map(i=><AppSelect key={i} ariaLabel={`Group ${g} player ${i+1}`} searchable value={groups[g]?.[i]||''} placeholder="Choose cadet" options={[{value:'',label:'Choose cadet'},...players.map(p=>({value:p.id,label:p.name}))]} onChange={id=>setGroups(prev=>({...prev,[g]:Array.from({length:4},(_,j)=>j===i?id:prev[g]?.[j]||'')}))}/>)}</div></div>)}
       <button type="button" className="btn-primary" disabled={busy || !players.length} onClick={()=>void create()}><CalendarClock size={15}/> {editing?'Save draft changes':'Publish draft fixtures'}</button>
       {editing&&<button type="button" className="btn-secondary" onClick={()=>setEditing(null)}>Cancel editing</button>}
     </div>}
-    {events.map(event=><div key={event.id} className="space-y-3 border-b border-border pb-4">
-      <h4 className="font-display font-bold text-ink">{event.title}</h4>
-      <p className="text-xs text-stone">Opening: {dateLabel(event.opening_at)} · Cameroon time · {event.status==='draft'?'Qualification pending':event.status}</p>
+    {events.map(event=><div key={event.id} className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2"><span className="text-[11px] font-black uppercase tracking-widest text-amber-200">{event.status==='completed'?'Final standings':event.semifinal_standings?.length?'Knockout stage':'Group stage'}</span><span className="rounded-full border border-white/20 bg-[#08172c]/70 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white">{event.status==='draft'?'Qualification pending':event.status==='completed'?'Completed':'Championship active'}</span></div>
       {event.champion && <p className="text-gold font-bold"><Trophy size={16} className="inline mr-1"/> Champion: {event.champion}</p>}
+      {event.standings.length>0 && <div aria-label="Tent challenge standings" className="space-y-2">
+        <div className="flex items-center justify-between px-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200"><span>Rank · Tent</span><span>Points</span></div>
+        {tentStandings(event.standings).map((tent, index)=>{const house=tentHouse(tent.name);const accent=house?HOUSE_COLORS[house]:'#F5B731';return <div key={tent.tent_id} className={`relative overflow-hidden rounded-xl border ${index===0?'border-amber-300/70 bg-[#13253b]/85':'border-white/15 bg-[#09182c]/75'} p-2.5 shadow-lg sm:p-3`}>
+          <div className="absolute inset-y-0 left-0 w-1" style={{backgroundColor:accent}} aria-hidden="true"/>
+          <div className="flex items-center gap-3"><span className={`w-7 shrink-0 text-center font-display text-xl font-black tabular-nums ${index===0?'text-amber-300':'text-slate-300'}`}>{String(index+1).padStart(2,'0')}</span>{house?<TentHouseSymbol houseId={house} size={46}/>:<Shield size={40} className="shrink-0 text-amber-200"/>}<div className="min-w-0 flex-1"><p className="break-words font-display text-base font-black leading-tight text-white sm:text-lg">{tent.name}</p>{index===0&&<span className="text-[9px] font-black uppercase tracking-wider text-amber-300"><Trophy size={11} className="mr-1 inline"/>Leader</span>}</div><div className="shrink-0 text-right"><p className="font-display text-3xl font-black leading-none tabular-nums text-amber-300">{tent.points}</p><p className="mt-1 text-[10px] font-semibold tabular-nums text-slate-300">Avg {tent.average.toFixed(2)}</p></div></div>
+        </div>})}
+      </div>}
       {event.can_manage && event.status==='draft' && <div className="rounded-md border border-border p-3 text-xs space-y-2">
         <p className="font-bold text-ink">Qualification · 500 Figs and 3 Rhudes required</p>
         {event.eligibility.map(p=><p key={p.user_id} className={p.qualified?'text-sage':'text-coral'}>{p.name} · {p.qualified?'Qualified':'Pending qualification'}</p>)}
@@ -129,8 +144,8 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
       <details className="group rounded-xl border border-border bg-surface/30" aria-label={`${event.title} scheduled matches`}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-3 [&::-webkit-details-marker]:hidden">
           <div className="min-w-0">
-            <h5 className="font-display text-sm font-semibold text-ink">Scheduled matches · {event.fixtures.filter(f => f.room_status !== 'playing').length}</h5>
-            <p className="mt-0.5 text-xs text-stone">{event.fixtures.filter(f => f.room_status === 'playing').length} live · {event.fixtures.filter(f => Boolean(f.result)).length} completed · Tap to view matches</p>
+            <h5 className="font-display text-sm font-bold text-white"><CalendarClock size={15} className="mr-1.5 inline text-amber-300"/> Fixtures & results</h5>
+            <p className="mt-0.5 text-xs text-slate-300">{event.fixtures.filter(f => f.room_status === 'playing').length} live · {event.fixtures.filter(f => Boolean(f.result)).length}/{event.fixtures.length} played</p>
           </div>
           <ChevronDown size={18} className="shrink-0 text-gold transition-transform group-open:rotate-180" aria-hidden="true" />
         </summary>
@@ -143,9 +158,10 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
         </InterTentMatchCard>})}
         </div>
       </details>
-      {event.standings.length>0 && <><h4 className="font-display font-bold text-ink">Group standings</h4><p className="text-xs text-stone">Tents ranked by total championship points from every resident who represented them. Average is shown separately.</p><div className="divide-y divide-border">{tentStandings(event.standings).map((tent, index)=><div key={tent.tent_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{index + 1}. {tent.name}</p><p className="text-stone">{tent.matches} resident match appearances · {tent.points} total points</p></div><div className="text-right"><p className="text-gold font-bold">{tent.points} pts</p><p className="text-[10px] text-stone">Avg {tent.average.toFixed(2)}</p></div></div>)}</div></>}
       {event.semifinal_standings?.length>0&&<><h4 className="font-display font-bold text-ink">Semifinal standings</h4><p className="text-xs text-stone">Two-leg combined points. The two highest advance.</p><div className="divide-y divide-border">{event.semifinal_standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches}/2 legs played</p></div><p className="text-gold font-bold">{p.points} pts</p></div>)}</div></>}
     </div>)}
+    <details className="rounded-lg border border-white/10 bg-[#08172c]/70 px-3 py-2 text-xs text-slate-300"><summary className="cursor-pointer font-semibold text-white">Championship rules</summary><p className="mt-2">Tents rank by total points. Average points determine resident qualification. The semifinal has two legs; the final has one.</p><p className="mt-2">Selected players may start at kickoff or join later. The first 15 minutes are free; late entry costs 5,000 Denarii once.</p>{events.map(event=><p key={event.id} className="mt-2">Opening: {dateLabel(event.opening_at)} · Cameroon time</p>)}</details>
     {message&&<p role="status" className="text-xs text-stone">{message}</p>}
+    </div>
   </section>;
 }
