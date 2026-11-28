@@ -2745,3 +2745,31 @@ Three comparative published excerpts retrieved via alternative search results af
 | 2 Samuel 20:1 | Retained | https://www.biblegateway.com/passage/?search=2+Samuel+20%3A1%2C1+Kings+12%3A16&version=NIV |
 | 2 Samuel 24:24 | Revised | https://www.biblegateway.com/passage/?search=1+Chronicles+21%3A25%2C2+Samuel+24%3A24-25&version=NIV |
 | Acts 15:16 | Retained | https://www.biblegateway.com/passage/?search=Acts+15%3A15-18%2CAmos+9%3A11-12&version=NIV%3BNET%3BHCSB%3BNKJV |
+
+
+## Batch 98 — First-pass completion: 2 Samuel 10:2 through Acts 4:11
+
+20 first-pass reviews across both checkpoints; 19 source-note updates, three substantive rewrites, all 20 records read back. Acts 26:22 retained pending independent retrieval. Evidence consists of published search excerpts, indexed comparative passages and translation notes, not comprehensive full-text or scholarly verification. No illustration or production certification.
+
+| Reference | Verdict | Source / limitation |
+|---|---|---|
+| 2 Samuel 10:2 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+10%2C1+Chronicles+19&version=NIV; Comparative chapter excerpt; nature of original kindness unspecified |
+| 2 Samuel 11:27 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+11%3A25-27&version=NKJV%3BNIV; Primary verse and cross-reference retrieved; chapter 12 comparison pending |
+| 2 Samuel 16:3 | Revised | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+9%3A7%2C2+Samuel+16%3A1-4%2C2+Samuel+19%3A24-30&version=NIV; Comparative excerpt |
+| 2 Samuel 20:1 | Retained | Phase III comparative published excerpt: https://www.biblegateway.com/passage/?search=2+Samuel+20%3A1%2C1+Kings+12%3A16&version=NIV |
+| 2 Samuel 21:2 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2Sam.21.2&version=NET%3BNIV%3BNKJV%3BKJV; Primary verse and Joshua cross-reference retrieved; Joshua passage pending |
+| 2 Samuel 22:1 | Revised | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+22&version=LSB%3BEHV%3BNIV%3BNKJV; Translation notes identify parallel version and variant wording |
+| 2 Samuel 23:39 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+23%3A39&version=NIV; Primary verse and chapter 11 cross-reference retrieved; chapter 11 passage pending |
+| 2 Samuel 24:24 | Revised | Phase III comparative published excerpt: https://www.biblegateway.com/passage/?search=1+Chronicles+21%3A25%2C2+Samuel+24%3A24-25&version=NIV |
+| 2 Samuel 7:16 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+7%3A16%2CLuke+1%3A32-33%2CPsalm+89%3A36-37%2C2+Samuel+7%3A13%2CIsaiah+9%3A7&version=ESV%3BNASB%3BNIV; Comparative excerpt; fall of monarchy passage pending |
+| 2 Samuel 7:6 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Samuel+7%3A2%2C2+Samuel+7%3A6&version=NIV; Primary comparison retrieved; verses 11–13 separately pending |
+| 2 Thessalonians 1:8 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Thessalonians+1%3A6-8&version=CJB%3BNIV; Primary excerpt and Isaiah cross-reference; Isaiah passage pending |
+| 2 Timothy 1:5 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=2+Timothy+1%3A5%2CActs+16%3A1-3&version=NIV; Comparative excerpt; 2 Timothy 3:15 independently pending |
+| 2 Timothy 4:11 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+15%3A37-40%2C2+Timothy+4%3A11%2CColossians+4%3A10&version=NIV; Comparative excerpt; traditional identification appropriately qualified |
+| Acts 1:26 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+1%3A26%2CJoshua+18%3A10%2CLeviticus+16%3A8%2CActs+2%3A14%2CJonah+1%3A7%2CProverbs+16%3A22%2C1+Chronicles+24%3A5&version=NIV%3BESV%3BNASB%3BNKJV; Comparative excerpt; Acts 6 and eligibility context pending |
+| Acts 13:47 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+13%3A47%2CIsaiah+49%3A6&version=NIV; Comparative publication indexed; full context pending |
+| Acts 15:16 | Retained | Phase III comparative published excerpt: https://www.biblegateway.com/passage/?search=Acts+15%3A15-18%2CAmos+9%3A11-12&version=NIV%3BNET%3BHCSB%3BNKJV |
+| Acts 2:41 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+2%3A41%2CExodus+32%3A28&version=NIV; Comparative publication indexed; proposed literary allusion not proven |
+| Acts 26:22 | Pending source check | Independent retrieval not established. |
+| Acts 3:22 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Deuteronomy+18%3A15%2CActs+3%3A22-23&version=NIV; Comparative excerpt; surrounding divination context pending |
+| Acts 4:11 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+4%3A11%2CPsalm+118%3A22&version=NIV; Comparative publication and Luke cross-reference; Luke passage pending |
