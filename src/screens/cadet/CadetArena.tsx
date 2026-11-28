@@ -1441,13 +1441,13 @@ export function CadetArena({ onBalanceChanged, onBackToDailyGames, initialRoomId
         <EmptyState icon={(props) => <Eye {...props} />} title="No live matches" message="Active Arena games will appear here the moment they begin." />
       )}
 
-      {rooms.some((room) => room.scheduled && room.status === 'waiting') && <details className="group rounded-xl border border-border bg-surface/30">
+      {rooms.some((room) => room.scheduled && room.status === 'waiting' && !/\[intertent\]/i.test(room.room_name || '')) && <details className="group rounded-xl border border-border bg-surface/30">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-3 [&::-webkit-details-marker]:hidden">
-          <span className="font-display text-sm font-semibold text-ink">Scheduled matches ({rooms.filter(room => room.scheduled && room.status === 'waiting').length})</span>
+          <span className="font-display text-sm font-semibold text-ink">Scheduled matches ({rooms.filter(room => room.scheduled && room.status === 'waiting' && !/\[intertent\]/i.test(room.room_name || '')).length})</span>
           <ChevronDown size={18} className="shrink-0 text-gold transition-transform group-open:rotate-180" />
         </summary>
         <div className="space-y-2 border-t border-border px-3 pb-3">
-        {rooms.filter((room) => room.scheduled && room.status === 'waiting').map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
+        {rooms.filter((room) => room.scheduled && room.status === 'waiting' && !/\[intertent\]/i.test(room.room_name || '')).map((room) => <div key={room.id} className="flex flex-wrap items-center gap-3 border-b border-border py-3">
           <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-ink">{cleanArenaRoomName(room.room_name)}</p><p className="text-xs text-stone">{regionalDateTime(room.scheduled_start_at, profile)} · {(room.scheduled_player_ids || []).length} selected players</p></div>
           <button type="button" className="btn-ghost h-9 w-9 p-0" title="Share Arena room" aria-label="Share Arena room" onClick={() => void shareRoom(room.id)}><Share2 size={15} /></button>
           {!room.scheduled_player_ids?.includes(profile?.id) && <button type="button" className="btn-secondary text-xs" onClick={() => void watchRoom(room.id, 'waiting')}><Eye size={14} /> Witness</button>}

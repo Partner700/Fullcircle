@@ -11,10 +11,12 @@ for (const group of Object.keys(DAVID_GROUPS)) {
   const fixtures = plan.filter((f) => f.group === group);
   assert.equal(fixtures.length, 4);
   assert.deepEqual(fixtures.map(f => f.leg), [1, 2, 3, 4]);
-  for (let i=1;i<4;i++) if(group!=='A'||i!==1) assert.equal(Date.parse(fixtures[i].startsAt)-Date.parse(fixtures[i-1].startsAt), 7*86400000);
+  for (let i=1;i<4;i++) assert.equal(Date.parse(fixtures[i].startsAt)-Date.parse(fixtures[i-1].startsAt), 7*86400000);
 }
-assert.equal(plan[0].startsAt,'2026-11-22T19:00:00+01:00');
-assert.equal(plan[1].startsAt,'2026-11-24T18:30:00+01:00');
+assert.equal(plan[0].startsAt,'2026-11-24T18:00:00+01:00');
+assert.equal(plan[1].startsAt,'2026-11-25T18:00:00+01:00');
+assert.equal(new Set(plan.map(f=>f.startsAt.slice(0,10))).size,16);
+assert(plan.every(f=>[2,3,4,5].includes(new Date(f.startsAt).getUTCDay())));
 assert.equal(interTentCountdown(plan[0].startsAt,Date.parse(plan[0].startsAt)-90061000).text,'1d 01:01:01');
 assert.equal(interTentCountdown(plan[0].startsAt,Date.parse(plan[0].startsAt)+1).remaining,0);
 const fixture=(sequence:number,room_status:InterTentFixture['room_status'],result:InterTentFixture['result']=null)=>({id:String(sequence),sequence,stage:'group',group_key:'A',leg:1,planned_at:plan[sequence-1].startsAt,room_id:room_status?String(sequence):null,room_status,result,sides:[]} as InterTentFixture);

@@ -24,12 +24,11 @@ export const DAVID_GROUPS: Record<InterTentGroup, readonly string[]> = {
 
 // Preserve the agreed start times in Cameroon, independent of a user's browser timezone.
 export function davidFixturePlan() {
-  const days = ['2026-11-24', '2026-11-26', '2026-12-01', '2026-12-03', '2026-12-08', '2026-12-10', '2026-12-15', '2026-12-17'];
-  return days.flatMap((date, day) => {
-    const groups: InterTentGroup[] = day % 2 === 0 ? ['A', 'B'] : ['C', 'D'];
-    return groups.map((group, slot) => ({ group, leg: Math.floor(day / 2) + 1,
-      startsAt: day===0&&slot===0?'2026-11-22T19:00:00+01:00':`${date}T18:${slot ? '30' : '00'}:00+01:00` }));
-  });
+  const groups: InterTentGroup[] = ['A', 'B', 'C', 'D'];
+  return Array.from({ length: 4 }, (_, week) => groups.map((group, day) => ({
+    group, leg: week + 1,
+    startsAt: `${new Date(Date.UTC(2026, 10, 24 + week * 7 + day)).toISOString().slice(0, 10)}T18:00:00+01:00`,
+  }))).flat();
 }
 
 export function currentInterTentFixture(events: InterTentChampionship[], now = Date.now()) {
