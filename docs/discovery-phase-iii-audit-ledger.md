@@ -2773,3 +2773,16 @@ Three comparative published excerpts retrieved via alternative search results af
 | Acts 26:22 | Pending source check | Independent retrieval not established. |
 | Acts 3:22 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Deuteronomy+18%3A15%2CActs+3%3A22-23&version=NIV; Comparative excerpt; surrounding divination context pending |
 | Acts 4:11 | Retained | Phase III Batch 98: https://www.biblegateway.com/passage/?search=Acts+4%3A11%2CPsalm+118%3A22&version=NIV; Comparative publication and Luke cross-reference; Luke passage pending |
+
+
+## Batch 99 — Partial source verification checkpoint
+
+Five source-note updates and two substantive rewrites, verified by database readback. Remaining 15 entries await independent source retrieval. Full-batch completion count unchanged. Evidence is published search excerpts, not comprehensive full-text or scholarly certification.
+
+| Reference | Verdict | Source / limitation |
+|---|---|---|
+| Acts 7:48 | Retained | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Acts+7%3A48-50%2C+Isaiah+66%3A1-2&version=NIV; Comparative excerpt; Solomon primary passage pending |
+| Colossians 2:16 | Retained | Phase III Batch 99: https://www.biblegateway.com/passage/?search=1+Samuel+20%3A5%2C1+Chronicles+23%3A31%2C2+Chronicles+2%3A4%2CEzra+3%3A5%2CIsaiah+1%3A13-Isaiah+1%3A14%2CEzekiel+45%3A17%2CEzekiel+46%3A6%2CHosea+2%3A11%2CColossians+2%3A16&version=CSBA%3BNIV; Published comparative result; full contexts pending |
+| Daniel 9:2 | Revised | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Daniel+9%3A2%2CJeremiah+29%3A10%2CJeremiah+25%3A11-12%2C2+Chronicles+36%3A21%2CZechariah+7%3A5&version=NIV; Published comparative result |
+| Deuteronomy 30:12 | Revised | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Deuteronomy+30%3A12%2CDeuteronomy+30%3A13%2CSirach+24%3A4%2CRomans+10%3A6%2CRomans+10%3A7&version=NRSVUE; Comparative excerpt; verse 8 pending |
+| Deuteronomy 34:10 | Retained | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Deuteronomy+34%3A10%2CExodus+33%3A11%2CNumbers+12%3A6-8%2CDeuteronomy+18%3A15-18%2CHebrews+3%3A5-6&version=KJV%3BNIV%3BNASB; Comparative result; Exodus 33:20 not separately retrieved |
