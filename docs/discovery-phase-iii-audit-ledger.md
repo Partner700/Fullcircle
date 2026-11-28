@@ -2786,3 +2786,12 @@ Five source-note updates and two substantive rewrites, verified by database read
 | Daniel 9:2 | Revised | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Daniel+9%3A2%2CJeremiah+29%3A10%2CJeremiah+25%3A11-12%2C2+Chronicles+36%3A21%2CZechariah+7%3A5&version=NIV; Published comparative result |
 | Deuteronomy 30:12 | Revised | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Deuteronomy+30%3A12%2CDeuteronomy+30%3A13%2CSirach+24%3A4%2CRomans+10%3A6%2CRomans+10%3A7&version=NRSVUE; Comparative excerpt; verse 8 pending |
 | Deuteronomy 34:10 | Retained | Phase III Batch 99: https://www.biblegateway.com/passage/?search=Deuteronomy+34%3A10%2CExodus+33%3A11%2CNumbers+12%3A6-8%2CDeuteronomy+18%3A15-18%2CHebrews+3%3A5-6&version=KJV%3BNIV%3BNASB; Comparative result; Exodus 33:20 not separately retrieved |
+
+### Batch 99 — Additional partial checkpoint (28 November 2026)
+
+Two source notes updated and read back; facts retained. Seven of the twenty planned entries now have recorded source checks; thirteen remain. Live coverage: 2401 discoveries, 1189/1189 chapters, zero deficit, 273 archived originals.
+
+| Reference | Verdict | Source / limitation |
+|---|---|---|
+| Daniel 12:3 | Retained provisionally | https://www.biblegateway.com/passage/?search=Daniel+12%3A3%2CMatthew+13%3A43&version=ESVUK%3BNIV; Matthew verse and Daniel cross-reference retrieved; Daniel full context pending. |
+| Deuteronomy 25:4 | Retained | https://www.biblegateway.com/passage/?search=Deuteronomy+25%3A4%2C1+Corinthians+9%3A9%2C1+Timothy+5%3A18&version=NIV; all three quoted verses retrieved; wider ministerial context pending. |
