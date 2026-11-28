@@ -32,7 +32,7 @@ export function useInterTentChampionships(viewerId?: string) {
     }
     failures.current = 0;
     cooldownUntil.current = 0;
-    setSnapshot({viewerId,events:Array.isArray(data)?data as InterTentChampionship[]:[]});
+    setSnapshot({viewerId,events:Array.isArray(data)?(data as InterTentChampionship[]).map(event=>({...event,fixtures:event.fixtures.map(fixture=>({...fixture,duel:event.duel}))})):[]});
     setAvailable(true);setFailed(false);
   },[viewerId]);
   useEffect(()=>{

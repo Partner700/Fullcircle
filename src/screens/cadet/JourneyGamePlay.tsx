@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { CheckCircle2, ChevronDown, Dices, Loader2, MessageCircle, RotateCw, Send, X, XCircle } from 'lucide-react';
 import { ArenaMatchup } from '../../components/ArenaMatchup';
 import { ArenaMarketRelics } from '../../components/ArenaMarketRelics';
+import { InterTentSpiritControls } from '../../components/InterTentSpiritControls';
 import { ArenaFinalScorecard } from '../../components/ArenaFinalScorecard';
 import { ArenaWitnessChatDrawer } from '../../components/ArenaWitnessChatDrawer';
 import { ArenaHeartReaction, ArenaTurnAlert } from '../../components/ArenaMatchInteractions';
@@ -396,6 +397,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
       spectator={spectator} prompt={state.currentQuestionPlayerId === userId && state.currentQuestion ? 'Answer your Scripture question.' : state.awaitingRoll ? 'Roll the die to continue.' : 'Complete your move.'} />
     {state.game.pointsRemaining !== undefined && <p className="text-center text-sm font-semibold text-brass">{state.game.pointsRemaining} / {state.game.pointPoolSize ?? 100} match points remaining · Closes {new Date(state.game.matchDeadline!).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>}
     <ArenaMatchup players={visiblePlayers} playing pinned arenaImage={arenaImage} />
+    {/\[intertent-duel\]/i.test(roomName)&&!guestKey&&!(pauseRemaining===0&&openQuestion&&asking&&!chatOpen&&state.game.status==='playing')&&<InterTentSpiritControls roomId={roomId} userId={userId} state={state} onChanged={()=>void load()}/>}
     {!spectator && arenaMatchRelicIsMuted(state.game.matchRelicUses, userId, 'shield-of-faith', machine)
       && <p role="status" className="text-xs text-stone">Shield of Faith: five uses reached for this match.</p>}
     {pauseRemaining > 0 && <JourneyDialog label="Standstill" fullScreen>
@@ -471,6 +473,7 @@ export function JourneyGamePlay({ witnessStrip, roomId, roomName, userId, player
             <div className={`h-full transition-[width] duration-200 ${secondsLeft <= 5 ? 'bg-coral' : 'bg-gold'}`} style={{ width: `${Math.min(100, secondsLeft / (state.questionAid?.used.includes('freeze-timer') ? 105 : 45) * 100)}%` }} />
           </div>
           <p className="mt-4 whitespace-pre-wrap text-sm font-medium leading-relaxed text-ink">{openQuestion.question}</p>
+          {/\[intertent-duel\]/i.test(roomName)&&!guestKey&&<InterTentSpiritControls roomId={roomId} userId={userId} state={state} onChanged={()=>void load()}/>}
           {waitingForMyAnswer && <div className="mt-4 max-h-[48dvh] space-y-2 overflow-y-auto pr-1">
             {openQuestion.type === 'true_false' && <div className="grid grid-cols-2 gap-2">
               {['true', 'false'].map((value) => <button type="button" key={value} className={answer === value ? 'btn-primary justify-center' : 'btn-secondary justify-center'} onClick={() => setAnswer(value)}>{value === 'true' ? 'True' : 'False'}</button>)}

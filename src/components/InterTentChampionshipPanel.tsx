@@ -9,6 +9,8 @@ import { AppSelect } from './AppSelect';
 import { useInterTentChampionships } from '../hooks/useInterTentChampionships';
 import { PanelImageBackdrop } from './PanelImageBackdrop';
 import { TentHouseSymbol, HOUSE_COLORS } from './TentHouseSymbol';
+import { useAuth } from '../context/AuthContext';
+import { InterTentSubstitutionControl } from './InterTentSubstitutionControl';
 
 function tentHouse(name: string) {
   if (/laurel|laureat/i.test(name)) return 'laureats';
@@ -24,6 +26,7 @@ const dateLabel = (value: string) => new Intl.DateTimeFormat('en-GB', {timeZone:
 type Candidate = { id: string; name: string };
 
 export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, witnessOnly, onScheduled, onOpenRoom, onShareRoom }: { instructor: boolean; viewerId: string; arenaImage?: PanelImageSetting | null; witnessOnly?: boolean; onScheduled: () => void | Promise<void>; onOpenRoom: (id:string,participant:boolean,status:'waiting'|'playing') => Promise<void>; onShareRoom?: (id:string) => void | Promise<void> }) {
+  const {role}=useAuth();
   const {events,refresh,available:enabled,failed,scores}=useInterTentChampionships(viewerId);
   const [players,setPlayers] = useState<Candidate[]>([]);
   const [avatars,setAvatars] = useState<Record<string,string|null>>({});
@@ -36,8 +39,9 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
   useEffect(()=>{if(failed&&instructor&&!enabled)setMessage('The Inter-Tent Championship service is not available yet.');},[failed,instructor,enabled]);
   // Group positions belong to tents, not individual residents. Weigh each
   // resident's points by their actual played matches before ranking tents.
-  const tentStandings = (standings: InterTentChampionship['standings']) => {
+  const tentStandings = (standings: InterTentChampionship['standings'], initialTents: {tent_id:string;tent_name:string}[] = []) => {
     const byTent = new Map<string, { tent_id: string; name: string; points: number; matches: number }>();
+    for(const tent of initialTents)byTent.set(tent.tent_id,{tent_id:tent.tent_id,name:tent.tent_name,points:0,matches:0});
     for (const person of standings) {
       const prior = byTent.get(person.tent_id) || { tent_id: person.tent_id, name: person.tent_name, points: 0, matches: 0 };
       prior.points += Number(person.points) || 0;
@@ -119,11 +123,12 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
       {editing&&<button type="button" className="btn-secondary" onClick={()=>setEditing(null)}>Cancel editing</button>}
     </div>}
     {events.map(event=><div key={event.id} className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2"><span className="text-[11px] font-black uppercase tracking-widest text-amber-200">{event.status==='completed'?'Final standings':event.semifinal_standings?.length?'Knockout stage':'Group stage'}</span><span className="rounded-full border border-white/20 bg-[#08172c]/70 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white">{event.status==='draft'?'Qualification pending':event.status==='completed'?'Completed':'Championship active'}</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/15 pb-2"><span className="text-[11px] font-black uppercase tracking-widest text-amber-200">{event.title.includes('(archived)')?'Previous format · Archived results':event.status==='completed'?'Final standings':event.finalist_tent_name?'Knockout stage':'Group stage'}{event.duel?' · 1v1':''}</span><span className="rounded-full border border-white/20 bg-[#08172c]/70 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-white">{event.status==='draft'?'Qualification pending':event.status==='completed'?'Completed':'Championship active'}</span></div>
+      {event.finalist_tent_name&&event.status!=='completed'&&<p className="text-gold font-bold text-sm"><Trophy size={16} className="inline mr-1"/> {event.finalist_tent_name} · Qualified directly for the final</p>}
       {event.champion && <p className="text-gold font-bold"><Trophy size={16} className="inline mr-1"/> Champion: {event.champion}</p>}
-      {event.standings.length>0 && <div aria-label="Tent challenge standings" className="space-y-2">
+      {(event.standings.length>0||event.duel) && <div aria-label="Tent challenge standings" className="space-y-2">
         <div className="flex items-center justify-between px-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-200"><span>Rank · Tent</span><span>Points</span></div>
-        {tentStandings(event.standings).map((tent, index)=>{const house=tentHouse(tent.name);const accent=house?HOUSE_COLORS[house]:'#F5B731';return <div key={tent.tent_id} className={`relative overflow-hidden rounded-xl border ${index===0?'border-amber-300/70 bg-[#13253b]/85':'border-white/15 bg-[#09182c]/75'} p-2.5 shadow-lg sm:p-3`}>
+        {tentStandings(event.standings,event.duel?event.fixtures.filter(f=>f.stage==='group').flatMap(f=>f.sides):[]).map((tent, index)=>{const house=tentHouse(tent.name);const accent=house?HOUSE_COLORS[house]:'#F5B731';return <div key={tent.tent_id} className={`relative overflow-hidden rounded-xl border ${index===0?'border-amber-300/70 bg-[#13253b]/85':'border-white/15 bg-[#09182c]/75'} p-2.5 shadow-lg sm:p-3`}>
           <div className="absolute inset-y-0 left-0 w-1" style={{backgroundColor:accent}} aria-hidden="true"/>
           <div className="flex items-center gap-3"><span className={`w-7 shrink-0 text-center font-display text-xl font-black tabular-nums ${index===0?'text-amber-300':'text-slate-300'}`}>{String(index+1).padStart(2,'0')}</span>{house?<TentHouseSymbol houseId={house} size={46}/>:<Shield size={40} className="shrink-0 text-amber-200"/>}<div className="min-w-0 flex-1"><p className="break-words font-display text-base font-black leading-tight text-white sm:text-lg">{tent.name}</p>{index===0&&<span className="text-[9px] font-black uppercase tracking-wider text-amber-300"><Trophy size={11} className="mr-1 inline"/>Leader</span>}</div><div className="shrink-0 text-right"><p className="font-display text-3xl font-black leading-none tabular-nums text-amber-300">{tent.points}</p><p className="mt-1 text-[10px] font-semibold tabular-nums text-slate-300">Avg {tent.average.toFixed(2)}</p></div></div>
         </div>})}
@@ -139,7 +144,7 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
         return <InterTentMatchCard key={f.id} fixture={f} avatars={avatars} arenaImage={arenaImage}
           participant={participant} draft={false} livePlayers={f.room_id ? scores.get(f.room_id) : undefined}
           onOpen={() => void onOpenRoom(f.room_id!, participant, 'playing')}
-          onShare={onShareRoom && f.room_id ? () => void onShareRoom(f.room_id!) : undefined} />;
+          onShare={onShareRoom && f.room_id ? () => void onShareRoom(f.room_id!) : undefined}>{event.duel&&role==='sentry'&&f.room_id&&f.sides.length===2&&<InterTentSubstitutionControl roomId={f.room_id} onChanged={()=>{void refresh();void onScheduled();}}/>}</InterTentMatchCard>;
       })}
       <details className="group rounded-xl border border-border bg-surface/30" aria-label={`${event.title} scheduled matches`}>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl p-3 [&::-webkit-details-marker]:hidden">
@@ -155,12 +160,13 @@ export function InterTentChampionshipPanel({ instructor, viewerId, arenaImage, w
             <label className="text-stone flex-1 min-w-0">New time (Cameroon)<input type="datetime-local" className="input-field mt-1" value={rescheduleTimes[f.id]||''} onChange={e=>setRescheduleTimes(prev=>({...prev,[f.id]:e.target.value}))}/></label>
             <button type="button" className="btn-secondary text-xs" disabled={busy||!rescheduleTimes[f.id]} onClick={()=>void reschedule(f.id)}>Reschedule</button>
           </div>}
+          {event.duel&&role==='sentry'&&f.room_status==='waiting'&&f.room_id&&f.sides.length===2&&<InterTentSubstitutionControl roomId={f.room_id} onChanged={()=>{void refresh();void onScheduled();}}/>}
         </InterTentMatchCard>})}
         </div>
       </details>
-      {event.semifinal_standings?.length>0&&<><h4 className="font-display font-bold text-ink">Semifinal standings</h4><p className="text-xs text-stone">Two-leg combined points. The two highest advance.</p><div className="divide-y divide-border">{event.semifinal_standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches}/2 legs played</p></div><p className="text-gold font-bold">{p.points} pts</p></div>)}</div></>}
+      {event.semifinal_standings?.length>0&&<><h4 className="font-display font-bold text-ink">Semifinal standings</h4><p className="text-xs text-stone">{event.duel?'Two-leg combined tent points. The winner advances.':'Two-leg combined points. The two highest advance.'}</p><div className="divide-y divide-border">{event.duel?tentStandings(event.semifinal_standings.map(p=>({...p,tent_id:p.tent_id||p.tent_name,average:p.matches?p.points/p.matches:0}))).map(tent=><div key={tent.tent_id} className="flex justify-between py-2"><span className="font-bold text-ink">{tent.name}</span><span className="text-gold font-bold">{tent.points} pts</span></div>):event.semifinal_standings.map(p=><div key={p.user_id} className="py-2 flex justify-between gap-2 text-xs"><div><p className="font-semibold text-ink">{p.name}</p><p className="text-stone">{p.tent_name} · {p.matches}/2 legs played</p></div><p className="text-gold font-bold">{p.points} pts</p></div>)}</div></>}
     </div>)}
-    <details className="rounded-lg border border-white/10 bg-[#08172c]/70 px-3 py-2 text-xs text-slate-300"><summary className="cursor-pointer font-semibold text-white">Championship rules</summary><p className="mt-2">Tents rank by total points. Average points determine resident qualification. The semifinal has two legs; the final has one.</p><p className="mt-2">Selected players may start at kickoff or join later. The first 15 minutes are free; late entry costs 5,000 Denarii once.</p>{events.map(event=><p key={event.id} className="mt-2">Opening: {dateLabel(event.opening_at)} · Cameroon time</p>)}</details>
+    <details className="rounded-lg border border-white/10 bg-[#08172c]/70 px-3 py-2 text-xs text-slate-300"><summary className="cursor-pointer font-semibold text-white">Championship rules</summary><p className="mt-2">{events.some(e=>e.duel)?'1v1 duels. The group leader advances to the final; second and third play a two-leg semifinal. Home players choose a same-tent witness as Spirit Player for up to three assistance actions. No Spirit Players in the final. Each sentry may substitute once per match.':'Tents rank by total points. Average points determine resident qualification. The semifinal has two legs; the final has one.'}</p><p className="mt-2">Selected players may start at kickoff or join later. The first 15 minutes are free; late entry costs 5,000 Denarii once.</p>{events.map(event=><p key={event.id} className="mt-2">Opening: {dateLabel(event.opening_at)} · Cameroon time</p>)}</details>
     {message&&<p role="status" className="text-xs text-stone">{message}</p>}
     </div>
   </section>;

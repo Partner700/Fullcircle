@@ -48,7 +48,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
   const live=fixture.room_status==='playing'&&!fixture.result;
   const scoreById=new Map((livePlayers||[]).map(p=>[p.user_id,arenaPlayerScore(p)]));
   const highest=scoreById.size?Math.max(...scoreById.values()):0;
-  const placeholders = fixture.stage === 'semi' ? ['Laurel #1', 'Spades #1', 'Square #1'] : ['Semifinal #1', 'Semifinal #2'];
+  const placeholders = fixture.duel ? fixture.stage === 'semi' ? ['Second-place tent', 'Third-place tent'] : ['Group leader', 'Semifinal winner'] : fixture.stage === 'semi' ? ['Laurel #1', 'Spades #1', 'Square #1'] : ['Semifinal #1', 'Semifinal #2'];
   // A paired tent is HOME and a solo tent is AWAY. In three-tent fixtures
   // the paired side occupies the middle position to balance the slide.
   const pairedSide = fixture.sides.length === 3 ? fixture.sides.find(side => side.players.length === 2) : undefined;
@@ -71,7 +71,7 @@ export function InterTentMatchCard({ fixture, arenaImage, avatars, participant, 
           return <div key={side.tent_id} className="contents">
             {index > 0 && <span className="flex shrink-0 items-center self-center text-gold" aria-label="versus"><Swords size={16} /></span>}
             <div className={`flex min-w-0 flex-1 flex-col items-center gap-2 rounded-lg p-2 text-center ${compact?'intertent-welcome-side':'border border-border bg-surface/55'}`}>
-              <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span><span className="rounded-full border border-gold/25 px-1.5 py-0.5 text-[9px] font-bold text-gold">{side.players.length >= 2 ? 'HOME' : 'AWAY'}</span></div>
+              <div className="flex min-w-0 flex-wrap items-center justify-center gap-1.5">{symbol && <TentHouseSymbol houseId={symbol} size={23}/>}<span className="break-words text-[10px] font-bold text-stone">{side.tent_name}</span>{fixture.stage!=='final'&&<span className="rounded-full border border-gold/25 px-1.5 py-0.5 text-[9px] font-bold text-gold">{fixture.home_tent_id?side.tent_id===fixture.home_tent_id?'HOME':'AWAY':side.players.length>=2?'HOME':'AWAY'}</span>}</div>
               <div className="flex flex-wrap justify-center gap-1.5">{side.players.map(player => <div key={player.id} className="flex min-w-0 flex-col items-center gap-1" title={player.name}><UserAvatar userId={player.id} name={player.name} avatarUrl={avatars[player.id]} className={`${compact?'h-8 w-8':'h-10 w-10 sm:h-12 sm:w-12'} shrink-0 border border-gold/35`} /><span className="font-display text-sm font-bold tabular-nums text-ink">{formatPlayerNumber(player.player_number)}</span>{live&&<span className={`font-display text-lg font-black tabular-nums ${scoreById.has(player.id)&&scoreById.get(player.id)===highest&&highest>0?'text-gold':'text-ink'}`} aria-label={`Live score ${scoreById.has(player.id)?scoreById.get(player.id):'loading'}`}>{scoreById.get(player.id)??'—'}</span>}</div>)}</div>
               {result && <p className="font-display text-base font-bold text-gold tabular-nums">{result.points} pts</p>}
             </div>

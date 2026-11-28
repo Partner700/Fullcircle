@@ -21,6 +21,7 @@ import {
   type JourneyRuntime,
 } from '../_shared/biblicalJourneyRuntime.ts';
 import { recoverJourneyBoardPoints, JOURNEY_MACHINE_ID } from '../_shared/biblicalJourney.ts';
+import { transferDuelJourneySeat } from '../_shared/interTentDuels.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')?.trim() || '';
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')?.trim() || '';
@@ -28,7 +29,7 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, apikey',
-  'X-Full-Circle-Journey-Release': '216',
+  'X-Full-Circle-Journey-Release': '217',
 };
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -55,7 +56,7 @@ async function rest(path: string, init: RequestInit = {}) {
   });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    if (/You do not own this relic|Relics are available only|match advanced/.test(error.message || '')) throw new Error(error.message);
+    if (/You do not own this relic|Relics are available only|match advanced|Spirit assistance|Spirit help|substitution|representative|resident from your tent|board advanced/i.test(error.message || '')) throw new Error(error.message);
     throw new Error(`Journey database request failed (${response.status}).`);
   }
   const value = await response.text();
@@ -245,7 +246,7 @@ Deno.serve(async (request) => {
       })) });
     }
     if (!uuidPattern.test(roomId)) return json({ error: 'Invalid Arena room.' }, 400);
-    if (!['FORFEIT', 'GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL'].includes(action)) {
+    if (!['FORFEIT', 'GET', 'INIT', 'ROLL', 'ANSWER', 'EXPIRE', 'CHOOSE', 'SERVE', 'BOT', 'RELIC', 'SHIELD', 'UNDO', 'STANDSTILL', 'RECOVER_POINTS', 'SPIRIT_ANSWER', 'SPIRIT_RELIC', 'DUEL_SUBSTITUTE'].includes(action)) {
       return json({ error: 'Unknown Journey action.' }, 400);
     }
 
@@ -284,6 +285,44 @@ Deno.serve(async (request) => {
     }
 
     const actorId = await authenticatedUserId(request);
+    if(action==='DUEL_SUBSTITUTE') {
+      const roles=await rest('rpc/get_intertent_duel_roles',{method:'POST',headers:{Authorization:request.headers.get('Authorization')!},body:JSON.stringify({p_room_id:roomId})});
+      const replacement=String(body.replacementId||'');
+      if(!roles||!roles.sentrySeat||roles.substitutionRemaining!==1||!uuidPattern.test(replacement)||!roles.substitutes?.some((p:{id:string})=>p.id===replacement))return json({error:'No sentry substitution available.'},403);
+      const current=await gameRow(roomId,'version,state');
+      const outgoing=roles.sentrySeat===1?roles.homePlayerId:roles.awayPlayerId;
+      let next:JourneyRuntime|null=null;
+      if(current){const runtime=current.state as JourneyRuntime;next=runtime.game.players.some(p=>p.id===outgoing)?transferDuelJourneySeat(runtime,outgoing,replacement):{...structuredClone(runtime),game:{...structuredClone(runtime.game),version:runtime.game.version+1}};}
+      await rest('rpc/commit_intertent_duel_substitution',{method:'POST',body:JSON.stringify({p_room_id:roomId,p_sentry_id:actorId,p_replacement_id:replacement,p_expected_version:current?.version??null,p_next_state:next})});
+      return json({state:next?publicJourneyRuntime(next):null,version:next?.game.version});
+    }
+    if (action === 'SPIRIT_ANSWER' || action === 'SPIRIT_RELIC') {
+      const roles = await rest('rpc/get_intertent_duel_roles', {method:'POST', headers:{Authorization:request.headers.get('Authorization')!}, body:JSON.stringify({p_room_id:roomId})});
+      const commandId=String(body.commandId||'');
+      if (!roles || roles.stage==='final' || roles.spiritUserId!==actorId || !uuidPattern.test(commandId)) return json({error:'Spirit assistance is unavailable.'},403);
+      const current=await gameRow(roomId,'version,state,updated_at');
+      if (!current || current.version!==Number(body.expectedVersion)) return json({error:'The board changed. Try again.',state:current?publicJourneyRuntime(current.state):null,version:current?.version},409);
+      const original=current.state as JourneyRuntime;
+      const questionId=original.currentQuestion?.id??null;
+      const slug=action==='SPIRIT_RELIC'?String(body.slug||''):null;
+      if(action==='SPIRIT_RELIC'&&!slug) return json({error:'Choose a relic.'},400);
+      const boardRelic=Boolean(slug&&['undo','standstill','the-ninety-nine','shield-of-faith','boomerang'].includes(slug));
+      if (roles.remaining<=0 || (!boardRelic&&!questionId) || (action==='SPIRIT_ANSWER'&&roles.requestQuestionId!==questionId)) return json({error:'Spirit help is unavailable for this question.'},409);
+      if (original.game.status!=='playing'||Date.now()<Date.parse(original.pausedUntil||'')||Date.now()>=Date.parse(original.game.matchDeadline||'')||(!boardRelic&&(original.game.shieldOffer||Date.now()>=Date.parse(original.questionDeadline||'')))) return json({error:'The current move is closed.'},409);
+      const home=String(roles.homePlayerId);
+      const owners=await arenaShieldOwners(rest, original.game.players.map(player=>player.id));
+      if(original.game.shieldOffer&&slug!=='shield-of-faith'&&slug!=='boomerang')return json({error:'Wait for the Shield of Faith decision.'},409);
+      let next:JourneyRuntime;
+      if(slug==='undo')next=await undoJourneyMove(original,home,approvedQuestion,secureRandom);
+      else if(slug==='standstill')next=pauseJourneyMatch(original,home);
+      else if(slug==='the-ninety-nine')next={...structuredClone(original),game:recoverJourneyBoardPoints(original.game,home)};
+      else if(slug==='shield-of-faith'||slug==='boomerang')next=await decideJourneyShield(original,home,slug==='shield-of-faith'?'use':'reflect',approvedQuestion,secureRandom,owners);
+      else if(slug)next=await applyJourneyRelic(original,home,slug,approvedQuestion,secureRandom,owners);
+      else next=await answerJourneyQuestion(original,home,String(body.answer||'').slice(0,2000),approvedQuestion,secureRandom,owners);
+      if(next.game.status==='finished'||next.game.pointsRemaining===0) finishJourney(next);
+      const result=await rest('rpc/commit_intertent_spirit_action',{method:'POST',body:JSON.stringify({p_room_id:roomId,p_expected_version:current.version,p_next_state:next,p_command_id:commandId,p_spirit_id:actorId,p_question_id:questionId,p_kind:slug?'relic':'answer',p_relic_slug:slug})});
+      return json({state:publicJourneyRuntime(result.state),version:result.state.game.version,duplicate:result.duplicate});
+    }
     const [context, playerRows] = await Promise.all([roomContext(roomId), participants(roomId)]);
     const activePlayers = playerRows.filter((player) => !player.forfeited_at);
     if (!activePlayers.some((player) => player.user_id === actorId)) {
@@ -400,7 +439,7 @@ Deno.serve(async (request) => {
       duplicate: result.duplicate });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'The Journey server could not complete that action.';
-    const known = /Shield of Faith|Undo|Standstill|relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
+    const known = /Spirit assistance|Spirit help|substitution|representative|resident from your tent|board advanced|Shield of Faith|Undo|Standstill|relic|Eliminate needs|wrong choices|reference to reveal|not open for you|not this player's turn|not your turn to roll|Wait for the question|must serve|opposing player|No approved|not ready|match advanced|session expired|Sign in|question is not open|room not found|Scribe's turn|not timed out|before time runs out/i.test(message);
     if (!known) console.error('Biblical Journey action failed:', error);
     return json({ error: known ? message : 'The Journey could not advance. Try again.' }, known ? 409 : 500);
   }

@@ -30,7 +30,7 @@ export async function initializeJourney(roomId: string): Promise<JourneyServerRe
   return callJourneyServer({ roomId, action: 'INIT', boardSpaces: 45 }, true);
 }
 
-export async function sendJourneyCommand(roomId: string, action: 'FORFEIT' | 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL' | 'RECOVER_POINTS',
+export async function sendJourneyCommand(roomId: string, action: 'FORFEIT' | 'ROLL' | 'ANSWER' | 'EXPIRE' | 'CHOOSE' | 'SERVE' | 'BOT' | 'RELIC' | 'SHIELD' | 'UNDO' | 'STANDSTILL' | 'RECOVER_POINTS' | 'SPIRIT_ANSWER' | 'SPIRIT_RELIC' | 'DUEL_SUBSTITUTE',
   expectedVersion: number, commandId: string, payload: Record<string, unknown> = {}): Promise<JourneyServerResponse> {
   return callJourneyServer({ roomId, action, expectedVersion, commandId, ...payload, shieldDecisionV1: true, journeyMarketRelicsV1: true }, true);
 }

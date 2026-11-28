@@ -4,13 +4,16 @@ export type InterTentFixture = {
   id: string; sequence: number; stage: 'group' | 'semi' | 'final'; group_key: InterTentGroup | null;
   leg: number; planned_at: string; room_id: string | null; room_status: string | null;
   journey_character_slug?: string | null; journey_secret?: boolean;
+  home_tent_id?: string | null; away_tent_id?: string | null;
+  duel?: boolean;
   sides: InterTentSide[]; result: Array<{ tent_id: string; points: number; score: number; answers: number }> | null;
 };
 export type InterTentChampionship = {
   id: string; title: string; status: 'draft' | 'scheduled' | 'playing' | 'completed';
+  duel?: boolean; finalist_tent_name?: string | null;
   opening_at: string; fixtures: InterTentFixture[]; champion: string | null;
   standings: Array<{ user_id: string; name: string; tent_id: string; tent_name: string; matches: number; points: number; average: number }>;
-  semifinal_standings: Array<{ user_id: string; name: string; tent_name: string; matches: number; points: number }>;
+  semifinal_standings: Array<{ user_id: string; name: string; tent_id?: string; tent_name: string; matches: number; points: number }>;
   eligibility: Array<{ user_id: string; name: string; qualified: boolean }>;
   can_manage: boolean;
 };
@@ -47,14 +50,16 @@ export function interTentCountdown(plannedAt: string, now: number) {
   return {remaining,text:days?`${days}d ${clock}`:clock};
 }
 
-export function interTentMatchLabel(fixture: Pick<InterTentFixture, 'sides' | 'stage'>): string {
+export function interTentMatchLabel(fixture: Pick<InterTentFixture, 'sides' | 'stage' | 'duel'>): string {
+  if(!fixture.sides.length&&fixture.duel)return fixture.stage==='semi'?'Second-place tent vs third-place tent':'Group leader vs semifinal winner';
   if (!fixture.sides.length) return fixture.stage === 'semi'
     ? 'Laurel #1 vs Spades #1 vs Square #1' : 'Semifinal #1 vs Semifinal #2';
   return fixture.sides.map((side) => side.players.map((player) => player.name).join(' & ')).join(' vs ');
 }
 
-export function interTentLegLabel(fixture: Pick<InterTentFixture, 'stage' | 'group_key' | 'leg'>): string {
+export function interTentLegLabel(fixture: Pick<InterTentFixture, 'stage' | 'group_key' | 'leg' | 'home_tent_id'>): string {
   if (fixture.stage === 'final') return 'Grand final';
+  if(fixture.home_tent_id&&fixture.stage==='group')return `1v1 · Meeting ${fixture.leg}`;
   // HOME/AWAY is determined by the number of players representing each tent
   // in this fixture, not by the odd/even match leg.
   return fixture.stage === 'semi' ? `Semifinal · Leg ${fixture.leg}` : `Group ${fixture.group_key} · Series ${Math.ceil(fixture.leg / 2)} · Leg ${fixture.leg}`;
